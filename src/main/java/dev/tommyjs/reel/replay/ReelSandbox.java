@@ -19,7 +19,7 @@ public interface ReelSandbox extends Closeable {
     static @NotNull ReelSandbox open(@NotNull ReelReader reader,
                                      @NotNull TrackCodecRegistry registry,
                                      @NotNull EntityHandlerRegistry entityHandlers) {
-        return open(reader, registry, entityHandlers, new DijkstraSeekPlanner());
+        return open(reader, registry, entityHandlers, new RecordingSeekPlanner());
     }
 
     <S, D> void registerHandler(@NotNull TrackHandle<S, D> track, @NotNull SnapshotTrackHandler<S, D> handler);

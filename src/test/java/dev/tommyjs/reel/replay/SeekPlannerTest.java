@@ -14,7 +14,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class SeekPlannerTest {
 
     static Stream<ReelSeekPlanner> planners() {
-        return Stream.of(new DijkstraSeekPlanner(), new HierarchicalSeekPlanner(), new TieredSeekPlanner());
+        return Stream.of(
+                new DijkstraSeekPlanner(),
+                new HierarchicalSeekPlanner(),
+                new TieredSeekPlanner(),
+                new RecordingSeekPlanner()
+        );
     }
 
     private List<SeekStep> plan(ReelSeekPlanner planner, List<TrackSpan> spans,
