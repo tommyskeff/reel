@@ -218,7 +218,7 @@ public class RecordingSeekPlanner implements ReelSeekPlanner {
         }
 
         private boolean hasActiveFrameInRange(long startInclusive, long endInclusive) {
-            if (endInclusive <= startInclusive) return false;
+            if (endInclusive < startInclusive) return false;
             Long next = activeFrames.higher(startInclusive);
             return next != null && next <= endInclusive;
         }
@@ -275,7 +275,9 @@ public class RecordingSeekPlanner implements ReelSeekPlanner {
             long tierSize = branchingFactor;
 
             while (index < sortedCompressed.size()) {
-                int take = (int) Math.min(Math.min(Integer.MAX_VALUE, tierSize), sortedCompressed.size() - index);
+                int remaining = sortedCompressed.size() - index;
+                long boundedTierSize = Math.min(tierSize, Integer.MAX_VALUE);
+                int take = (int) Math.min(boundedTierSize, remaining);
                 List<TrackSpan> tier = new ArrayList<>(sortedCompressed.subList(index, index + take));
                 tiers.add(tier);
                 index += take;
