@@ -49,7 +49,7 @@ public class RecordingSeekPlanner implements ReelSeekPlanner {
             List<TrackSpan> compressed = new ArrayList<>();
             for (TrackSpan span : spans) {
                 long width = Math.abs(span.targetFrame() - span.referenceFrame());
-                if (width == 1) {
+                if (width == 1 && span.targetFrame() > span.referenceFrame()) {
                     frameByFrame.add(span);
                 } else if (width > 1) {
                     compressed.add(span);
@@ -276,8 +276,7 @@ public class RecordingSeekPlanner implements ReelSeekPlanner {
 
             while (index < sortedCompressed.size()) {
                 int remaining = sortedCompressed.size() - index;
-                long boundedTierSize = Math.min(tierSize, Integer.MAX_VALUE);
-                int take = (int) Math.min(boundedTierSize, remaining);
+                int take = (int) Math.min(tierSize, remaining);
                 List<TrackSpan> tier = new ArrayList<>(sortedCompressed.subList(index, index + take));
                 tiers.add(tier);
                 index += take;
