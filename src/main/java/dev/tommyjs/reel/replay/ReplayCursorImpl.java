@@ -18,6 +18,7 @@ import dev.tommyjs.reel.track.TrackModel;
 import dev.tommyjs.reel.track.TrackRegistry;
 import dev.tommyjs.reel.track.codec.Codec;
 import io.netty.buffer.ByteBuf;
+import io.netty.util.ReferenceCountUtil;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
@@ -111,69 +112,76 @@ final class ReplayCursorImpl implements ReplayCursor {
         }
 
         SeekResult res = planner.seek(currentFrame, targetFrame);
+        try {
+            LinkedHashMap<Long, EntityUpdate> entities = new LinkedHashMap<>();
+            Set<Long> present = new LinkedHashSet<>();
+            Set<Long> closed = new LinkedHashSet<>();
 
-        LinkedHashMap<Long, EntityUpdate> entities = new LinkedHashMap<>();
-        Set<Long> present = new LinkedHashSet<>();
-        Set<Long> closed = new LinkedHashSet<>();
+            for (Map.Entry<Long, EntitySteps> e : res.entities().entrySet()) {
+                long entityId = e.getKey();
+                EntitySteps entitySteps = e.getValue();
+                EntityTypeHandle type = entityTypesByTypeId.get(entitySteps.entityTypeId());
 
-        for (Map.Entry<Long, EntitySteps> e : res.entities().entrySet()) {
-            long entityId = e.getKey();
-            EntitySteps entitySteps = e.getValue();
-            EntityTypeHandle type = entityTypesByTypeId.get(entitySteps.entityTypeId());
+                if (type == null) {
+                    continue;
+                }
 
-            if (type == null) {
-                continue;
-            }
-
-            for (Step rs : entitySteps.steps()) {
-                try {
-                    List<TrackUpdate<?, ?>> steps = resolveStep(rs.entry().payload().duplicate(), rs);
-                    if (steps == null) {
-                        closed.add(entityId);
-                        present.remove(entityId);
-                    } else if (!steps.isEmpty()) {
-                        EntityUpdateImpl update = (EntityUpdateImpl) entities.computeIfAbsent(entityId,
-                            id -> new EntityUpdateImpl(id, type, new LinkedHashMap<>()));
-                        for (TrackUpdate<?, ?> step : steps) {
-                            update.putUpdate(rs.handle(), step);
+                for (Step rs : entitySteps.steps()) {
+                    try {
+                        List<TrackUpdate<?, ?>> steps = resolveStep(rs.entry().payload(), rs);
+                        if (steps == null) {
+                            closed.add(entityId);
+                            present.remove(entityId);
+                        } else if (!steps.isEmpty()) {
+                            EntityUpdateImpl update = (EntityUpdateImpl) entities.computeIfAbsent(entityId,
+                                id -> new EntityUpdateImpl(id, type, new LinkedHashMap<>()));
+                            for (TrackUpdate<?, ?> step : steps) {
+                                update.putUpdate(rs.handle(), step);
+                            }
+                            present.add(entityId);
+                            closed.remove(entityId);
                         }
-                        present.add(entityId);
-                        closed.remove(entityId);
+                    } catch (Exception ex) {
+                        LOGGER.warn("skipping step for entity_id={} due to decode error: handle={}, reversed={}", entityId,
+                            rs.handle(), rs.reversed(), ex);
                     }
-                } catch (Exception ex) {
-                    LOGGER.warn("skipping step for entity_id={} due to decode error: handle={}, reversed={}", entityId,
-                        rs.handle(), rs.reversed(), ex);
+                }
+            }
+
+            entities.keySet().removeAll(closed);
+
+            Set<Long> removed = new LinkedHashSet<>();
+            if (res.complete()) {
+                for (long id : liveEntities) {
+                    if (!present.contains(id)) {
+                        removed.add(id);
+                    }
+                }
+                liveEntities.clear();
+                liveEntities.addAll(present);
+            } else {
+                for (long id : closed) {
+                    if (liveEntities.contains(id)) {
+                        removed.add(id);
+                    }
+                }
+                liveEntities.removeAll(closed);
+                liveEntities.addAll(present);
+            }
+
+            if (!entities.isEmpty() || !removed.isEmpty()) {
+                long emittedFrom = currentFrame == Long.MIN_VALUE ? -1L : currentFrame;
+                dispatch(new ReplayUpdateImpl(emittedFrom, targetFrame, entities, new LinkedHashSet<>(removed)));
+            }
+
+            currentFrame = targetFrame;
+        } finally {
+            for (EntitySteps entitySteps : res.entities().values()) {
+                for (Step rs : entitySteps.steps()) {
+                    ReferenceCountUtil.safeRelease(rs.entry().payload().body());
                 }
             }
         }
-
-        entities.keySet().removeAll(closed);
-
-        Set<Long> removed = new LinkedHashSet<>();
-        if (res.complete()) {
-            for (long id : liveEntities) {
-                if (!present.contains(id)) {
-                    removed.add(id);
-                }
-            }
-            liveEntities.clear();
-            liveEntities.addAll(present);
-        } else {
-            for (long id : closed) {
-                if (liveEntities.contains(id)) {
-                    removed.add(id);
-                }
-            }
-            liveEntities.removeAll(closed);
-            liveEntities.addAll(present);
-        }
-
-        if (!entities.isEmpty() || !removed.isEmpty()) {
-            long emittedFrom = currentFrame == Long.MIN_VALUE ? -1L : currentFrame;
-            dispatch(new ReplayUpdateImpl(emittedFrom, targetFrame, entities, new LinkedHashSet<>(removed)));
-        }
-
-        currentFrame = targetFrame;
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

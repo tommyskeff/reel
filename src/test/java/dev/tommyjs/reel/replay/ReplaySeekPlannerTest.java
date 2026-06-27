@@ -512,6 +512,34 @@ class ReplaySeekPlannerTest {
     }
 
     @Test
+    void seekPayloadsSurviveSegmentEvictionAndClose() {
+        WindowGroup[][] windows0 = emptyWindows();
+        windows0[1][0] = tagged(1);
+        Segment seg0 = new Segment(0, 4, new long[]{100}, new int[]{7},
+            new TrackReference[]{new TrackReference(0, 0)}, windows0);
+        WindowGroup[][] windows1 = emptyWindows();
+        windows1[1][0] = tagged(2);
+        Segment seg1 = new Segment(4, 8, new long[]{100}, new int[]{7},
+            new TrackReference[]{new TrackReference(0, 0)}, windows1);
+        when(reader.readSegment(0)).thenReturn(seg0);
+        when(reader.readSegment(1)).thenReturn(seg1);
+        when(reader.readTrackDirectory()).thenReturn(trackDirectory());
+        when(reader.readSegmentDirectory()).thenReturn(
+            segmentDirectory(new SegmentEntry(0, 4, 0, 0), new SegmentEntry(4, 8, 0, 0)));
+
+        ReplaySeekPlanner planner = ReplaySeekPlanner.create(reader, TestFixtures.registry(), 1);
+
+        List<Step> steps = planner.seek(Long.MIN_VALUE, 7).entities().get(100L).steps();
+        planner.close();
+
+        assertEquals(List.of(1, 2), tagsOf(steps));
+
+        for (Step step : steps) {
+            step.entry().payload().body().release();
+        }
+    }
+
+    @Test
     void closeClosesCachedSegments() {
         WindowGroup[][] windows = emptyWindows();
         windows[1][0] = group(0);

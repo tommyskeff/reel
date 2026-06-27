@@ -168,8 +168,9 @@ final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
                 continue;
             }
 
+            WindowEntry retained = new WindowEntry(refIdx, winEntry.payload().retainedDuplicate());
             result.computeIfAbsent(entityId, k -> new EntitySteps(entityTypeId, new ArrayList<>()))
-                .steps().add(new Step(handle, def.codecVersion(), def.kind(), winEntry, reversed));
+                .steps().add(new Step(handle, def.codecVersion(), def.kind(), retained, reversed));
         }
     }
 
