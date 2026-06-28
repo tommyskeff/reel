@@ -1,15 +1,13 @@
 package dev.tommyjs.reel.storage.codec;
 
+import dev.tommyjs.reel.storage.ReelCompressor;
 import dev.tommyjs.reel.storage.ReelIOUtil;
 import dev.tommyjs.reel.storage.model.*;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufInputStream;
 import io.netty.util.ReferenceCountUtil;
-import net.jpountz.lz4.LZ4FrameInputStream;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 public final class SegmentCodec {
 
@@ -17,10 +15,15 @@ public final class SegmentCodec {
     }
 
     public static void encodeCompressed(@NotNull ByteBuf out, @NotNull Segment seg) throws IOException {
+        encodeCompressed(out, seg, ReelCompressor.LZ4);
+    }
+
+    public static void encodeCompressed(@NotNull ByteBuf out, @NotNull Segment seg, @NotNull ReelCompressor compression)
+        throws IOException {
         ByteBuf body = out.alloc().heapBuffer();
         try {
             encode(body, seg);
-            ReelIOUtil.compressLz4(body, out);
+            compression.compress(body, out);
         } finally {
             body.release();
         }
@@ -28,23 +31,17 @@ public final class SegmentCodec {
 
     public static @NotNull Segment decodeCompressed(@NotNull ByteBuf compressed, int compressedLength, int layerCount)
         throws IOException {
+        return decodeCompressed(compressed, compressedLength, layerCount, ReelCompressor.LZ4);
+    }
+
+    public static @NotNull Segment decodeCompressed(@NotNull ByteBuf compressed, int compressedLength, int layerCount,
+                                                    @NotNull ReelCompressor compression) throws IOException {
         ByteBuf decompressed = compressed.alloc().heapBuffer();
         try {
-            decompressFrame(compressed, decompressed, compressedLength);
+            compression.decompress(compressed, compressedLength, decompressed);
             return decode(decompressed, layerCount);
         } finally {
             ReferenceCountUtil.safeRelease(decompressed);
-        }
-    }
-
-    private static void decompressFrame(ByteBuf src, ByteBuf dst, int compressedLen) throws IOException {
-        ByteBuf slice = src.slice(src.readerIndex(), compressedLen);
-        try (InputStream in = new ByteBufInputStream(slice); LZ4FrameInputStream lz4 = new LZ4FrameInputStream(in)) {
-            byte[] buf = new byte[65536];
-            int read;
-            while ((read = lz4.read(buf)) != -1) {
-                dst.writeBytes(buf, 0, read);
-            }
         }
     }
 

@@ -1,5 +1,6 @@
 package dev.tommyjs.reel.storage.reader;
 
+import dev.tommyjs.reel.storage.ReelCompressor;
 import dev.tommyjs.reel.storage.FileByteSource;
 import dev.tommyjs.reel.storage.ReelByteSource;
 import dev.tommyjs.reel.storage.ReelFormat;
@@ -21,6 +22,7 @@ public final class ReelFileReader implements ReelReader {
     private final ReelByteSource source;
     private final ReelFileLayout layout;
     private final ByteBufAllocator allocator;
+    private ReelCompressor compression = ReelCompressor.LZ4;
 
     private EntityTypeDirectory typeDirectory;
     private TrackDirectory trackDirectory;
@@ -100,7 +102,7 @@ public final class ReelFileReader implements ReelReader {
 
             ByteBuf compressed = source.read(allocator, absoluteOffset, (int) byteSize);
             try {
-                return SegmentCodec.decodeCompressed(compressed, (int) byteSize, td.layerCount());
+                return SegmentCodec.decodeCompressed(compressed, (int) byteSize, td.layerCount(), compression);
             } finally {
                 ReferenceCountUtil.safeRelease(compressed);
             }
@@ -128,7 +130,7 @@ public final class ReelFileReader implements ReelReader {
 
         ByteBuf header = source.read(allocator, 0, ReelFormat.HEADER_SIZE);
         try {
-            FileLayoutCodec.decodeHeader(header);
+            this.compression = ReelCompressor.forId(FileLayoutCodec.decodeHeaderCompression(header));
         } finally {
             header.release();
         }

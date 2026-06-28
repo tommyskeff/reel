@@ -203,9 +203,9 @@ class ReelIOUtilTest {
         ByteBuf compressed = Unpooled.buffer();
         ByteBuf decompressed = Unpooled.buffer();
         try {
-            ReelIOUtil.compressLz4(src, compressed);
+            ReelCompressor.LZ4.compress(src, compressed);
             int compressedLen = compressed.readableBytes();
-            ReelIOUtil.decompressLz4(compressed, compressedLen, decompressed, 0);
+            ReelCompressor.LZ4.decompress(compressed, compressedLen, decompressed);
             assertEquals(0, decompressed.readableBytes());
             assertEquals(0, compressed.readableBytes());
         } finally {
@@ -226,10 +226,10 @@ class ReelIOUtilTest {
         ByteBuf decompressed = Unpooled.buffer(data.length);
         try {
             src.writeBytes(data);
-            ReelIOUtil.compressLz4(src, compressed);
+            ReelCompressor.LZ4.compress(src, compressed);
             assertEquals(0, src.readableBytes(), "compress should consume src");
             int compressedLen = compressed.readableBytes();
-            ReelIOUtil.decompressLz4(compressed, compressedLen, decompressed, data.length);
+            ReelCompressor.LZ4.decompress(compressed, compressedLen, decompressed);
             assertEquals(data.length, decompressed.readableBytes());
             byte[] out = new byte[data.length];
             decompressed.readBytes(out);
@@ -249,11 +249,10 @@ class ReelIOUtilTest {
         ByteBuf decompressed = Unpooled.buffer();
         try {
             src.writeBytes(data);
-            ReelIOUtil.compressLz4(src, compressed);
+            ReelCompressor.LZ4.compress(src, compressed);
             int compressedLen = compressed.readableBytes();
-            // Claim too few uncompressed bytes — stream yields more than expected.
             assertThrows(IOException.class,
-                () -> ReelIOUtil.decompressLz4(compressed, compressedLen, decompressed, data.length - 1));
+                () -> ReelCompressor.LZ4.decompress(compressed, compressedLen - 1, decompressed));
         } finally {
             src.release();
             compressed.release();

@@ -22,45 +22,6 @@ public final class ReelIOUtil {
     private ReelIOUtil() {
     }
 
-    public static void compressLz4(@NotNull ByteBuf src, @NotNull ByteBuf dst) throws IOException {
-        int readable = src.readableBytes();
-        try (ByteBufOutputStream stream = new ByteBufOutputStream(dst);
-             LZ4FrameOutputStream lzStream = new LZ4FrameOutputStream(stream)) {
-            if (readable > 0) {
-                src.readBytes(lzStream, readable);
-            }
-        }
-    }
-
-    public static void decompressLz4(@NotNull ByteBuf src, int compressedLength, @NotNull ByteBuf dst,
-                                     int uncompressedLength) throws IOException {
-        ByteBuf slice = src.slice(src.readerIndex(), compressedLength);
-        dst.ensureWritable(uncompressedLength);
-        try (ByteBufInputStream stream = new ByteBufInputStream(slice);
-             LZ4FrameInputStream lzStream = new LZ4FrameInputStream(stream)) {
-            int remaining = uncompressedLength;
-            while (remaining > 0) {
-                int read = dst.writeBytes(lzStream, remaining);
-                if (read == -1) {
-                    break;
-                }
-                remaining -= read;
-            }
-
-            if (remaining != 0) {
-                throw new IOException(
-                    "lz4 decompression size mismatch: actual=" + (uncompressedLength - remaining) + ", expected=" +
-                        uncompressedLength);
-            }
-
-            if (lzStream.read() != -1) {
-                throw new IOException("lz4 decompression exceeded expected size: expected=" + uncompressedLength);
-            }
-        }
-
-        src.skipBytes(compressedLength);
-    }
-
     public static void writeVarInt(@NotNull ByteBuf buf, long value) {
         while ((value & ~0x7FL) != 0) {
             buf.writeByte((int) ((value & 0x7F) | 0x80));

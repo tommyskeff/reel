@@ -16,12 +16,21 @@ public final class FileLayoutCodec {
     }
 
     public static void encodeHeader(@NotNull ByteBuf out) {
+        encodeHeader(out, (byte) 0);
+    }
+
+    public static void encodeHeader(@NotNull ByteBuf out, byte compressionId) {
         out.writeBytes(ReelFormat.headerMagic());
         out.writeShort(ReelFormat.FORMAT_VERSION);
-        out.writeBytes(RESERVED_BYTES);
+        out.writeByte(compressionId);
+        out.writeBytes(RESERVED_BYTES, 0, RESERVED_BYTES.length - 1);
     }
 
     public static void decodeHeader(@NotNull ByteBuf in) throws IOException {
+        decodeHeaderCompression(in);
+    }
+
+    public static byte decodeHeaderCompression(@NotNull ByteBuf in) throws IOException {
         byte[] magic = new byte[ReelFormat.HEADER_MAGIC_LENGTH];
         in.readBytes(magic);
         if (!Arrays.equals(magic, ReelFormat.headerMagic())) {
@@ -34,7 +43,9 @@ public final class FileLayoutCodec {
                 "unsupported format_version: got=" + version + ", expected=" + ReelFormat.FORMAT_VERSION);
         }
 
-        in.readBytes(new byte[RESERVED_BYTES.length]);
+        byte compressionId = in.readByte();
+        in.readBytes(new byte[RESERVED_BYTES.length - 1]);
+        return compressionId;
     }
 
     public static void encodeFooter(@NotNull ByteBuf out, @NotNull ReelFileLayout layout) {

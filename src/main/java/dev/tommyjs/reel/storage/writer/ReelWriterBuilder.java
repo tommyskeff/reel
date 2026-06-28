@@ -1,5 +1,6 @@
 package dev.tommyjs.reel.storage.writer;
 
+import dev.tommyjs.reel.storage.ReelCompressor;
 import dev.tommyjs.reel.storage.FileByteSink;
 import dev.tommyjs.reel.storage.ReelByteSink;
 import dev.tommyjs.reel.storage.ReelIOUtil;
@@ -16,6 +17,7 @@ public final class ReelWriterBuilder {
     private ReelByteSink sink = null;
     private ByteBufAllocator allocator = ReelIOUtil.DEFAULT_ALLOCATOR;
     private LayerStrategy layerStrategy = LayerStrategy.DEFAULT;
+    private ReelCompressor compression = ReelCompressor.LZ4;
 
     public ReelWriterBuilder() {
     }
@@ -55,12 +57,17 @@ public final class ReelWriterBuilder {
         return this;
     }
 
+    public @NotNull ReelWriterBuilder setCompression(@NotNull ReelCompressor compression) {
+        this.compression = compression;
+        return this;
+    }
+
     public @NotNull ReelWriter build() throws IOException {
         if (sink == null) {
             throw new IllegalStateException("byte sink must be set");
         }
 
-        return new ReelFileWriter(sink, allocator, layerStrategy);
+        return new ReelFileWriter(sink, allocator, layerStrategy, compression);
     }
 
 }

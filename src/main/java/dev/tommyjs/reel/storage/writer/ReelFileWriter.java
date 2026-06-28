@@ -1,5 +1,6 @@
 package dev.tommyjs.reel.storage.writer;
 
+import dev.tommyjs.reel.storage.ReelCompressor;
 import dev.tommyjs.reel.storage.FileByteSink;
 import dev.tommyjs.reel.storage.ReelByteSink;
 import dev.tommyjs.reel.storage.ReelFormat;
@@ -28,6 +29,7 @@ public final class ReelFileWriter implements ReelWriter {
     private final ReelByteSink sink;
     private final ByteBufAllocator allocator;
     private final @NotNull LayerStrategy layerStrategy;
+    private final @NotNull ReelCompressor compression;
 
     private final EntityTypeRegistry entityTypes;
     private final TrackTypeRegistry trackTypes;
@@ -41,9 +43,15 @@ public final class ReelFileWriter implements ReelWriter {
 
     public ReelFileWriter(@NotNull ReelByteSink sink, @NotNull ByteBufAllocator allocator,
                           @NotNull LayerStrategy layerStrategy) {
+        this(sink, allocator, layerStrategy, ReelCompressor.LZ4);
+    }
+
+    public ReelFileWriter(@NotNull ReelByteSink sink, @NotNull ByteBufAllocator allocator,
+                          @NotNull LayerStrategy layerStrategy, @NotNull ReelCompressor compression) {
         this.sink = sink;
         this.allocator = allocator;
         this.layerStrategy = layerStrategy;
+        this.compression = compression;
         this.entityTypes = new EntityTypeRegistry();
         this.trackTypes = new TrackTypeRegistry();
         this.segmentEntries = new ArrayList<>();
@@ -64,7 +72,12 @@ public final class ReelFileWriter implements ReelWriter {
 
     public ReelFileWriter(@NotNull File file, @NotNull ByteBufAllocator allocator,
                           @NotNull LayerStrategy layerStrategy) {
-        this(openFile(file), allocator, layerStrategy);
+        this(openFile(file), allocator, layerStrategy, ReelCompressor.LZ4);
+    }
+
+    public ReelFileWriter(@NotNull File file, @NotNull ByteBufAllocator allocator,
+                          @NotNull LayerStrategy layerStrategy, @NotNull ReelCompressor compression) {
+        this(openFile(file), allocator, layerStrategy, compression);
     }
 
     private static ReelByteSink openFile(@NotNull File file) {
@@ -76,7 +89,7 @@ public final class ReelFileWriter implements ReelWriter {
     }
 
     private void writeHeader() throws IOException {
-        writeData(FileLayoutCodec::encodeHeader, ReelFormat.HEADER_SIZE);
+        writeData(buf -> FileLayoutCodec.encodeHeader(buf, compression.id()), ReelFormat.HEADER_SIZE);
         segmentDataSectionOffset = sink.position();
     }
 
@@ -147,7 +160,7 @@ public final class ReelFileWriter implements ReelWriter {
         Segment segment = pendingSegment.build(endFrame);
         ByteBuf compressed = allocator.heapBuffer();
         try {
-            SegmentCodec.encodeCompressed(compressed, segment);
+            SegmentCodec.encodeCompressed(compressed, segment, compression);
 
             long encodedSize = compressed.readableBytes();
             long byteOffset = sink.position() - segmentDataSectionOffset;
