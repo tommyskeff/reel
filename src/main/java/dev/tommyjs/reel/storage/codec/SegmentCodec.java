@@ -14,11 +14,11 @@ public final class SegmentCodec {
     private SegmentCodec() {
     }
 
-    public static void encodeCompressed(@NotNull ByteBuf out, @NotNull Segment seg) throws IOException {
+    public static void encodeCompressed(@NotNull ByteBuf out, @NotNull SegmentView seg) throws IOException {
         encodeCompressed(out, seg, ReelCompressor.LZ4);
     }
 
-    public static void encodeCompressed(@NotNull ByteBuf out, @NotNull Segment seg, @NotNull ReelCompressor compression)
+    public static void encodeCompressed(@NotNull ByteBuf out, @NotNull SegmentView seg, @NotNull ReelCompressor compression)
         throws IOException {
         ByteBuf body = out.alloc().heapBuffer();
         try {
@@ -45,7 +45,7 @@ public final class SegmentCodec {
         }
     }
 
-    public static void encode(@NotNull ByteBuf out, @NotNull Segment seg) {
+    public static void encode(@NotNull ByteBuf out, @NotNull SegmentView seg) {
         ReelIOUtil.writeVarInt(out, seg.getStartFrame());
         ReelIOUtil.writeVarInt(out, seg.getEndFrame());
 
@@ -87,7 +87,7 @@ public final class SegmentCodec {
         out.writerIndex(savedWriter);
     }
 
-    private static void writeLayerRegion(@NotNull ByteBuf out, @NotNull Segment seg, int layer) {
+    private static void writeLayerRegion(@NotNull ByteBuf out, @NotNull SegmentView seg, int layer) {
         int windowCount = seg.getWindowCount(layer);
         ReelIOUtil.writeVarInt(out, windowCount);
 

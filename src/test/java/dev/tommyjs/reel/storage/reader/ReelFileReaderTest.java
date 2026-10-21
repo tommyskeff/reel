@@ -6,6 +6,7 @@ import dev.tommyjs.reel.storage.model.EntityTypeDirectory;
 import dev.tommyjs.reel.storage.model.Segment;
 import dev.tommyjs.reel.storage.model.SegmentDirectory;
 import dev.tommyjs.reel.storage.model.SegmentEntry;
+import dev.tommyjs.reel.storage.model.SegmentView;
 import dev.tommyjs.reel.track.TrackKind;
 import dev.tommyjs.reel.storage.model.TrackDirectory;
 import dev.tommyjs.reel.storage.model.TrackReference;
@@ -62,7 +63,7 @@ class ReelFileReaderTest {
             assertEquals(0L, entry.startFrame());
             assertEquals(4L, entry.endFrame());
 
-            Segment segment = reader.readSegment(0);
+            SegmentView segment = reader.readSegment(0);
             try {
                 assertEquals(0L, segment.getStartFrame());
                 assertEquals(4L, segment.getEndFrame());
@@ -130,7 +131,7 @@ class ReelFileReaderTest {
         }
     }
 
-    private static int readPayload(Segment segment, int layer, int localWindowIndex) {
+    private static int readPayload(SegmentView segment, int layer, int localWindowIndex) {
         WindowGroup group = segment.getWindow(layer, localWindowIndex);
         WindowEntry[] entries = group.entries();
         assertEquals(1, entries.length);

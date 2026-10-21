@@ -89,7 +89,7 @@ public final class ReelFileReader implements ReelReader {
     }
 
     @Override
-    public @NotNull Segment readSegment(int segmentIndex) {
+    public @NotNull SegmentView readSegment(int segmentIndex) {
         try {
             TrackDirectory td = readTrackDirectory();
             SegmentEntry entry = readSegmentDirectory().segments().get(segmentIndex);

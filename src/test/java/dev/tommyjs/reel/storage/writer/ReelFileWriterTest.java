@@ -4,6 +4,7 @@ import dev.tommyjs.reel.storage.model.EntityTypeDirectory;
 import dev.tommyjs.reel.storage.model.Segment;
 import dev.tommyjs.reel.storage.model.SegmentDirectory;
 import dev.tommyjs.reel.storage.model.SegmentEntry;
+import dev.tommyjs.reel.storage.model.SegmentView;
 import dev.tommyjs.reel.storage.model.TrackDirectory;
 import dev.tommyjs.reel.storage.model.TrackReference;
 import dev.tommyjs.reel.track.TrackKind;
@@ -195,7 +196,7 @@ class ReelFileWriterTest {
             assertEquals(0, segmentEntry.startFrame());
             assertEquals(4, segmentEntry.endFrame());
 
-            Segment segment = reader.readSegment(0);
+            SegmentView segment = reader.readSegment(0);
             try {
                 WindowGroup group = segment.getWindow(0, 0);
                 assertEquals(1, group.size());

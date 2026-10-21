@@ -4,6 +4,7 @@ import dev.tommyjs.reel.scene.ReplaySceneImpl;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,6 +15,7 @@ public final class ScenePlayerBuilder {
     int baseFps;
     double speed = 1.0;
     boolean looping;
+    Duration liveDelay = Duration.ZERO;
     final List<PlaybackListener> listeners = new ArrayList<>();
     boolean autoSchedule;
     ScheduledExecutorService executor;
@@ -41,6 +43,11 @@ public final class ScenePlayerBuilder {
         return this;
     }
 
+    public @NotNull ScenePlayerBuilder setLiveDelay(@NotNull Duration liveDelay) {
+        this.liveDelay = liveDelay;
+        return this;
+    }
+
     public @NotNull ScenePlayerBuilder addListener(@NotNull PlaybackListener listener) {
         this.listeners.add(listener);
         return this;
@@ -57,13 +64,36 @@ public final class ScenePlayerBuilder {
     }
 
     public @NotNull ScenePlayer build() {
+        validate();
+        ScenePlayerImpl player = new ScenePlayerImpl(scene, baseFps, speed, looping, listeners);
+        player.initialise(autoSchedule, executor);
+        return player;
+    }
+
+    public @NotNull LiveScenePlayer buildLive() {
+        validate();
+        if (speed < 0) {
+            throw new IllegalStateException("negative speed is not supported while following live");
+        }
+        if (looping) {
+            throw new IllegalStateException("looping is not supported while following live");
+        }
+        if (liveDelay.isNegative()) {
+            throw new IllegalStateException("live delay must not be negative");
+        }
+
+        LiveScenePlayerImpl player = new LiveScenePlayerImpl(scene, baseFps, speed, liveDelay, listeners);
+        player.initialise(autoSchedule, executor);
+        return player;
+    }
+
+    private void validate() {
         if (scene == null) {
             throw new IllegalStateException("scene must be provided");
         }
         if (baseFps <= 0) {
             throw new IllegalStateException("base fps must be positive");
         }
-        return new ScenePlayerImpl(scene, baseFps, speed, looping, listeners, autoSchedule, executor);
     }
 
 }

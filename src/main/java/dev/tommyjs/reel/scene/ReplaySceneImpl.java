@@ -99,6 +99,10 @@ public final class ReplaySceneImpl implements ReplayScene, Closeable {
         return cursor.totalFrames();
     }
 
+    public boolean isComplete() {
+        return cursor.isComplete();
+    }
+
     private void onUpdate(ReplayUpdate update) {
         SceneTransition transition = new SceneTransition(update.getFromFrame(), update.getToFrame(), playback);
         for (EntityUpdate entity : update.getEntities()) {

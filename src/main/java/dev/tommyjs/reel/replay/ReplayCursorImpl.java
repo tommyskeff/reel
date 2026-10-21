@@ -41,8 +41,11 @@ final class ReplayCursorImpl implements ReplayCursor {
     private final Long2ObjectOpenHashMap<EntityTypeHandle> entityTypesByTypeId;
     private final CopyOnWriteArrayList<ReplayListener> listeners;
     private final Set<Long> liveEntities;
+    private final Set<String> validatedTracks;
+    private final Set<Integer> unknownEntityTypes;
 
     private long currentFrame = Long.MIN_VALUE;
+    private long revision;
 
     ReplayCursorImpl(@NotNull ReelReader reader, @NotNull TrackRegistry registry, int chunkCacheSize,
                      long anchorSeekPenalty, boolean ownsReader) {
@@ -53,22 +56,36 @@ final class ReplayCursorImpl implements ReplayCursor {
         this.entityTypesByTypeId = new Long2ObjectOpenHashMap<>();
         this.listeners = new CopyOnWriteArrayList<>();
         this.liveEntities = new LinkedHashSet<>();
+        this.validatedTracks = new LinkedHashSet<>();
+        this.unknownEntityTypes = new LinkedHashSet<>();
+        this.revision = reader.getRevision();
 
         readEntityTypes();
         validateTrackKinds();
     }
 
+    private void refreshIfStale() {
+        long current = reader.getRevision();
+        if (current == revision) {
+            return;
+        }
+
+        readEntityTypes();
+        validateTrackKinds();
+        revision = current;
+    }
+
     private void validateTrackKinds() {
         for (TrackDefinition def : reader.readTrackDirectory().trackTypes()) {
-            RegisteredTrack<?, ?> track = registry.get(def.identifier());
-            if (track == null) {
+            if (validatedTracks.contains(def.identifier())) {
                 continue;
             }
-            TrackKind actual = track.model().kind();
-            if (actual != def.kind()) {
+            RegisteredTrack<?, ?> track = registry.get(def.identifier());
+            if (track != null && track.model().kind() != def.kind()) {
                 throw new IllegalStateException("track kind mismatch for \"" + def.identifier() + "\": file=" + def.kind()
-                    + ", registry=" + actual);
+                    + ", registry=" + track.model().kind());
             }
+            validatedTracks.add(def.identifier());
         }
     }
 
@@ -90,6 +107,11 @@ final class ReplayCursorImpl implements ReplayCursor {
     }
 
     @Override
+    public boolean isComplete() {
+        return reader.isComplete();
+    }
+
+    @Override
     public void addListener(@NotNull ReplayListener listener) {
         listeners.addIfAbsent(listener);
     }
@@ -101,6 +123,8 @@ final class ReplayCursorImpl implements ReplayCursor {
 
     @Override
     public void seek(long targetFrame) {
+        refreshIfStale();
+
         long total = reader.getTotalFrames();
         if (targetFrame < 0 || targetFrame >= total) {
             throw new IllegalArgumentException(
@@ -123,6 +147,10 @@ final class ReplayCursorImpl implements ReplayCursor {
                 EntityTypeHandle type = entityTypesByTypeId.get(entitySteps.entityTypeId());
 
                 if (type == null) {
+                    if (unknownEntityTypes.add(entitySteps.entityTypeId())) {
+                        LOGGER.warn("skipping updates for entity_type_id={} (absent from the type directory), "
+                            + "entity_id={}", entitySteps.entityTypeId(), entityId);
+                    }
                     continue;
                 }
 
