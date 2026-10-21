@@ -23,7 +23,7 @@ public final class ReelLivePublisher implements ReelWriterListener {
 
     private long fragmentStart = Long.MAX_VALUE;
     private long fragmentEnd = Long.MIN_VALUE;
-    private long headFrame;
+    private long headFrame = -1;
     private boolean complete;
     private long totalFrames;
 

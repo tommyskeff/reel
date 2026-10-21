@@ -204,6 +204,49 @@ class LiveFollowTest {
         }
     }
 
+    @Test
+    void followingTheHeadEmitsIncrementalUpdates() throws IOException {
+        TrackRegistry registry = TestFixtures.registry();
+        IntModel trackModel = TestFixtures.intModel();
+        Map<Long, IntState> model = new HashMap<>();
+        Map<Long, Long> fromFrames = new HashMap<>();
+
+        try (LocalLiveReel live = new LocalLiveReel(STRATEGY)) {
+            try (ReelRecorder recorder = recorder(registry, live, "incremental.reel");
+                 ReplayCursor cursor = ReplayCursor.builder()
+                     .setTrackRegistry(registry)
+                     .setReader(live.reader())
+                     .build()) {
+
+                assertEquals(0L, cursor.totalFrames());
+                assertThrows(IllegalArgumentException.class, () -> cursor.seek(0));
+
+                cursor.addListener(update -> {
+                    fromFrames.put(update.getToFrame(), update.getFromFrame());
+                    TestFixtures.applyIntModel(model, trackModel, update);
+                });
+
+                EntityRecorder player = recorder.createEntity(PLAYER);
+                long playerId = player.entityId();
+                player.recordState(POSITION, new IntState(0));
+                live.flush();
+
+                for (int frame = 1; frame <= 30; frame++) {
+                    recorder.advanceFrame();
+                    player.recordDelta(POSITION, new IntDelta(1));
+                    live.flush();
+                    cursor.seek(live.reader().getHeadFrame());
+                }
+
+                long head = live.reader().getHeadFrame();
+                assertEquals(new IntState((int) head), model.get(playerId));
+                for (long frame = 1; frame <= head; frame++) {
+                    assertEquals(frame - 1, fromFrames.get(frame), "seek to frame " + frame + " was not incremental");
+                }
+            }
+        }
+    }
+
     private static EntityTypeHandle lastEntityTypeOf(ReplayCursor cursor, LocalLiveReel live,
                                                      TrackRegistry registry, long entityId) {
         Map<Long, EntityTypeHandle> types = new HashMap<>();

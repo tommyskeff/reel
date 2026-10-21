@@ -85,6 +85,21 @@ class LiveScenePlayerTest {
     }
 
     @Test
+    void waitsForTheFirstPublishedFrame() {
+        LiveScenePlayer player = livePlayer(Duration.ZERO);
+        player.play();
+        player.tick(Duration.ofSeconds(1));
+
+        assertEquals(0L, live.reader().getTotalFrames());
+        assertEquals(-1L, player.getCurrentFrame());
+
+        advance(10);
+        player.tick(Duration.ofSeconds(1));
+
+        assertEquals(player.getLiveTargetFrame(), player.getCurrentFrame());
+    }
+
+    @Test
     void targetsTheHeadMinusTheDelay() {
         advance(60);
         LiveScenePlayer player = livePlayer(Duration.ofSeconds(1));

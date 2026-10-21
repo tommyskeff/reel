@@ -45,6 +45,7 @@ abstract class AbstractScenePlayer implements ScenePlayer {
         this.looping = looping;
         this.listeners = new CopyOnWriteArrayList<>(listeners);
         this.state = PlaybackState.PAUSED;
+        this.current = -1;
     }
 
     void initialise(boolean autoSchedule, @Nullable ScheduledExecutorService executor) {
@@ -189,12 +190,12 @@ abstract class AbstractScenePlayer implements ScenePlayer {
     @Override
     public double getProgress() {
         long total = scene.getTotalFrames();
-        return total <= 1 ? 0.0 : (double) current / (total - 1);
+        return total <= 1 ? 0.0 : (double) Math.max(0, current) / (total - 1);
     }
 
     @Override
     public @NotNull Duration getCurrentTime() {
-        return frameToDuration(current);
+        return frameToDuration(Math.max(0, current));
     }
 
     @Override
@@ -229,6 +230,10 @@ abstract class AbstractScenePlayer implements ScenePlayer {
     }
 
     protected void advanceTo(long target) {
+        if (scene.getTotalFrames() == 0) {
+            return;
+        }
+
         target = Math.max(0, Math.min(target, limitFrame()));
         if (target != current) {
             scene.seek(target, true);
@@ -238,6 +243,10 @@ abstract class AbstractScenePlayer implements ScenePlayer {
     }
 
     protected void rawSeek(long frame) {
+        if (scene.getTotalFrames() == 0) {
+            return;
+        }
+
         frame = Math.max(0, Math.min(frame, limitFrame()));
         scene.seek(frame);
         current = frame;

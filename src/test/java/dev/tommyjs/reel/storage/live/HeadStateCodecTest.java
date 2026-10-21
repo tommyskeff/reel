@@ -65,6 +65,21 @@ class HeadStateCodecTest {
     }
 
     @Test
+    void roundTripsAnEmptyHeadState() throws IOException {
+        ReelHeadState original = new ReelHeadState(
+            LiveTestFixtures.playerTypes(),
+            LiveTestFixtures.positionTracks(STRIDES),
+            new SegmentDirectory(List.of()), -1, false);
+
+        ByteBuf buf = Unpooled.buffer();
+        HeadStateCodec.encode(buf, original);
+        ReelHeadState decoded = HeadStateCodec.decode(buf);
+
+        assertEquals(-1L, decoded.headFrame());
+        assertFalse(decoded.complete());
+    }
+
+    @Test
     void preservesAnchorFlagsAcrossManySegments() throws IOException {
         List<SegmentEntry> entries = List.of(
             new SegmentEntry(0, 16, 0, 0, true),

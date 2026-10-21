@@ -40,7 +40,7 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
     private volatile EntityTypeDirectory typeDirectory = EntityTypeDirectory.of(List.of());
     private volatile TrackDirectory trackDirectory;
     private volatile SegmentDirectory segmentDirectory = new SegmentDirectory(List.of());
-    private volatile long headFrame;
+    private volatile long headFrame = -1;
     private volatile boolean complete;
     private volatile long totalFrames;
     private volatile long retainedFrames = Long.MAX_VALUE;
