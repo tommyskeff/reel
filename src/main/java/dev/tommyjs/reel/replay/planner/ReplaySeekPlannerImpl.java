@@ -7,22 +7,33 @@ import dev.tommyjs.reel.storage.reader.ReelReader;
 import dev.tommyjs.reel.track.TrackHandle;
 import dev.tommyjs.reel.track.TrackRegistry;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ReplaySeekPlannerImpl.class);
 
     private static final int DEFAULT_SEGMENT_CACHE_SIZE = 4;
 
     private final ReelReader reader;
     private final TrackRegistry registry;
-    private final Cache<Integer, Segment> segmentCache;
-    private final TrackDirectory trackDirectory;
-    private final SegmentDirectory segmentDirectory;
+    private final Cache<Integer, SegmentView> segmentCache;
+    private final boolean readerOwnsSegments;
     private final long anchorPenalty;
+    private final Set<Integer> unknownTrackTypes = new HashSet<>();
+    private final Set<String> unregisteredTracks = new HashSet<>();
+
+    private TrackDirectory trackDirectory;
+    private SegmentDirectory segmentDirectory;
+    private long revision;
 
     ReplaySeekPlannerImpl(@NotNull ReelReader reader, @NotNull TrackRegistry registry) {
         this(reader, registry, DEFAULT_SEGMENT_CACHE_SIZE, -1L);
@@ -36,7 +47,8 @@ final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
                           long anchorSeekPenalty) {
         this.reader = reader;
         this.registry = registry;
-        this.segmentCache = Caffeine.newBuilder().maximumSize(segmentCacheSize).<Integer, Segment>evictionListener(
+        this.readerOwnsSegments = reader.ownsSegments();
+        this.segmentCache = Caffeine.newBuilder().maximumSize(segmentCacheSize).<Integer, SegmentView>evictionListener(
             (idx, segment, cause) -> {
                 if (segment != null) {
                     segment.close();
@@ -44,6 +56,7 @@ final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
             }).build();
         this.trackDirectory = reader.readTrackDirectory();
         this.segmentDirectory = reader.readSegmentDirectory();
+        this.revision = reader.getRevision();
 
         long[] strides = trackDirectory.layerStrides();
         this.anchorPenalty = anchorSeekPenalty < 0 ? strides[strides.length - 1] : anchorSeekPenalty;
@@ -51,6 +64,12 @@ final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
 
     @Override
     public @NotNull SeekResult seek(long fromFrame, long toFrame) {
+        return reader.withReadLock(() -> plan(fromFrame, toFrame));
+    }
+
+    private SeekResult plan(long fromFrame, long toFrame) {
+        refreshIfStale();
+
         long[] strides = trackDirectory.layerStrides();
         boolean known = fromFrame != Long.MIN_VALUE;
         long anchor = segmentDirectory.floorAnchorStart(toFrame);
@@ -78,6 +97,34 @@ final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
         }
 
         return new SeekResult(entities, complete);
+    }
+
+    private void refreshIfStale() {
+        long current = reader.getRevision();
+        if (current == revision) {
+            return;
+        }
+
+        revision = current;
+        trackDirectory = reader.readTrackDirectory();
+        segmentDirectory = reader.readSegmentDirectory();
+        invalidateOpenSegments();
+    }
+
+    private void invalidateOpenSegments() {
+        int lastIndex = segmentDirectory.size() - 1;
+        if (lastIndex < 0) {
+            return;
+        }
+
+        for (int index : List.copyOf(segmentCache.asMap().keySet())) {
+            if (index >= lastIndex) {
+                SegmentView stale = segmentCache.asMap().remove(index);
+                if (stale != null) {
+                    stale.close();
+                }
+            }
+        }
     }
 
     private static List<WindowStep> walkForward(long fromFrame, long toFrame, long[] strides) {
@@ -128,7 +175,9 @@ final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
             return;
         }
 
-        Segment seg = segmentCache.get(segIdx, reader::readSegment);
+        SegmentView seg = readerOwnsSegments
+            ? reader.readSegment(segIdx)
+            : segmentCache.get(segIdx, reader::readSegment);
 
         int localWindowIdx = (int) (globalWindowIndex - entry.startFrame() / stride);
         if (localWindowIdx < 0 || localWindowIdx >= seg.getWindowCount(layer)) {
@@ -160,11 +209,19 @@ final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
             int entityTypeId = entityTypeIds[ref.entityIndex()];
             TrackDefinition def = trackDirectory.get(ref.typeId());
             if (def == null) {
+                if (unknownTrackTypes.add(ref.typeId())) {
+                    LOGGER.warn("skipping payloads for track_type_id={} (absent from the track directory), "
+                        + "entity_id={}", ref.typeId(), entityId);
+                }
                 continue;
             }
 
             TrackHandle<?, ?> handle = registry.getHandle(def.identifier());
             if (handle == null) {
+                if (unregisteredTracks.add(def.identifier())) {
+                    LOGGER.warn("skipping payloads for track \"{}\" (absent from the track registry)",
+                        def.identifier());
+                }
                 continue;
             }
 
@@ -176,7 +233,7 @@ final class ReplaySeekPlannerImpl implements ReplaySeekPlanner {
 
     @Override
     public void close() {
-        segmentCache.asMap().values().forEach(Segment::close);
+        segmentCache.asMap().values().forEach(SegmentView::close);
         segmentCache.invalidateAll();
     }
 

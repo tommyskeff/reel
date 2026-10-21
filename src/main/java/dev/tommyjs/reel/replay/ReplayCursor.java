@@ -25,6 +25,8 @@ public interface ReplayCursor extends Closeable {
 
     long totalFrames();
 
+    boolean isComplete();
+
     void addListener(@NotNull ReplayListener listener);
 
     void removeListener(@NotNull ReplayListener listener);

@@ -1,5 +1,8 @@
 package dev.tommyjs.reel;
 
+import dev.tommyjs.reel.replay.update.EntityUpdate;
+import dev.tommyjs.reel.replay.update.ReplayUpdate;
+import dev.tommyjs.reel.replay.update.TrackUpdate;
 import dev.tommyjs.reel.track.*;
 import dev.tommyjs.reel.track.codec.BoolCodec;
 import dev.tommyjs.reel.track.codec.Codec;
@@ -9,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public final class TestFixtures {
 
@@ -52,6 +56,24 @@ public final class TestFixtures {
 
     public static @NotNull Codec<Signal> signalCodec() {
         return new SignalCodec();
+    }
+
+    public static void applyIntModel(@NotNull Map<Long, IntState> model, @NotNull IntModel trackModel,
+                                     @NotNull ReplayUpdate update) {
+        for (EntityUpdate entity : update.getEntities()) {
+            IntState state = model.getOrDefault(entity.getEntityId(), new IntState(0));
+            for (TrackUpdate<IntState, IntDelta> step : entity.getUpdatesFor(POSITION)) {
+                if (step instanceof TrackUpdate.Snapshot<IntState, IntDelta> snapshot) {
+                    state = snapshot.state();
+                } else if (step instanceof TrackUpdate.Delta<IntState, IntDelta> delta) {
+                    state = trackModel.applyDelta(state, delta.delta());
+                }
+            }
+            model.put(entity.getEntityId(), state);
+        }
+        for (Long removed : update.getRemoved()) {
+            model.remove(removed);
+        }
     }
 
     public static @NotNull TrackRegistry registry() {

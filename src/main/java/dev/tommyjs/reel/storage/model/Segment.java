@@ -5,7 +5,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.io.Closeable;
 
-public final class Segment implements Closeable {
+public final class Segment implements SegmentView, Closeable {
 
     private final long startFrame;
     private final long endFrame;
@@ -27,26 +27,32 @@ public final class Segment implements Closeable {
         this.layerWindows = layerWindows;
     }
 
+    @Override
     public long getStartFrame() {
         return startFrame;
     }
 
+    @Override
     public long getEndFrame() {
         return endFrame;
     }
 
+    @Override
     public long @NotNull [] getEntityIds() {
         return entityIds;
     }
 
+    @Override
     public int @NotNull [] getEntityTypeIds() {
         return entityTypeIds;
     }
 
+    @Override
     public @NotNull TrackReference @NotNull [] getTrackRefs() {
         return trackRefs;
     }
 
+    @Override
     public @NotNull WindowGroup getWindow(int layer, int localWindowIndex) {
         WindowGroup[] windows = layerWindows[layer];
         if (localWindowIndex < 0 || localWindowIndex >= windows.length) {
@@ -56,10 +62,12 @@ public final class Segment implements Closeable {
         return windows[localWindowIndex];
     }
 
+    @Override
     public int getWindowCount(int layer) {
         return layerWindows[layer].length;
     }
 
+    @Override
     public int getLayerCount() {
         return layerWindows.length;
     }

@@ -32,6 +32,7 @@ import org.mockito.MockitoAnnotations;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static dev.tommyjs.reel.TestFixtures.PLAYER;
 import static dev.tommyjs.reel.TestFixtures.POSITION;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,6 +67,7 @@ class ReplayCursorImplTest {
     @BeforeEach
     void setUp() {
         mocks = MockitoAnnotations.openMocks(this);
+        when(reader.withReadLock(any())).thenAnswer(invocation -> invocation.<Supplier<?>>getArgument(0).get());
         when(reader.getTotalFrames()).thenReturn(TOTAL_FRAMES);
         when(reader.readTypeDirectory()).thenReturn(typeDirectory(0, "player"));
         when(reader.readTrackDirectory()).thenReturn(trackDirectory());

@@ -11,6 +11,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class ReelWriterBuilder {
 
@@ -18,6 +20,7 @@ public final class ReelWriterBuilder {
     private ByteBufAllocator allocator = ReelIOUtil.DEFAULT_ALLOCATOR;
     private LayerStrategy layerStrategy = LayerStrategy.DEFAULT;
     private ReelCompressor compression = ReelCompressor.LZ4;
+    private final List<ReelWriterListener> listeners = new ArrayList<>();
 
     public ReelWriterBuilder() {
     }
@@ -62,12 +65,18 @@ public final class ReelWriterBuilder {
         return this;
     }
 
+    public @NotNull ReelWriterBuilder addListener(@NotNull ReelWriterListener listener) {
+        this.listeners.add(listener);
+        return this;
+    }
+
     public @NotNull ReelWriter build() throws IOException {
         if (sink == null) {
             throw new IllegalStateException("byte sink must be set");
         }
 
-        return new ReelFileWriter(sink, allocator, layerStrategy, compression);
+        ReelWriter writer = new ReelFileWriter(sink, allocator, layerStrategy, compression);
+        return listeners.isEmpty() ? writer : new ListeningReelWriter(writer, listeners);
     }
 
 }
