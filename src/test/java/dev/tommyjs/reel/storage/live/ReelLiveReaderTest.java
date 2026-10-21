@@ -27,10 +27,10 @@ class ReelLiveReaderTest {
     }
 
     @Test
-    void reportsAnEmptyButUsableTimeline() {
+    void reportsNoFramesBeforeAnythingIsPublished() {
         try (ReelLiveReader reader = reader()) {
-            assertEquals(1L, reader.getTotalFrames());
-            assertEquals(0L, reader.getHeadFrame());
+            assertEquals(0L, reader.getTotalFrames());
+            assertEquals(-1L, reader.getHeadFrame());
             assertFalse(reader.isComplete());
             assertTrue(reader.ownsSegments());
             assertEquals(0, reader.readSegmentDirectory().size());
@@ -136,7 +136,7 @@ class ReelLiveReaderTest {
                 LiveTestFixtures.entry(1L, 0L, LiveTestFixtures.statePayload(5))));
 
             assertEquals(1, reader.getPendingMessageCount());
-            assertEquals(0L, reader.getHeadFrame());
+            assertEquals(-1L, reader.getHeadFrame());
 
             reader.accept(new ReelMessage.EntityTypeRegistered("player", 0));
             assertEquals(1, reader.getPendingMessageCount());

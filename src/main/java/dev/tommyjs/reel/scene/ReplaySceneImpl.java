@@ -7,6 +7,8 @@ import dev.tommyjs.reel.track.EntityTypeHandle;
 import dev.tommyjs.reel.track.TrackRegistry;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
@@ -19,6 +21,8 @@ import java.util.Map;
 import java.util.Set;
 
 public final class ReplaySceneImpl implements ReplayScene, Closeable {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ReplaySceneImpl.class);
 
     private final ReplayCursor cursor;
     private final TrackRegistry tracks;
@@ -39,7 +43,9 @@ public final class ReplaySceneImpl implements ReplayScene, Closeable {
         this.tracks = tracks;
         this.handlers = order(handlers);
         this.cursor.addListener(this::onUpdate);
-        seek(0);
+        if (cursor.totalFrames() > 0) {
+            seek(0);
+        }
     }
 
     public static @NotNull ReplaySceneBuilder builder() {
@@ -114,8 +120,9 @@ public final class ReplaySceneImpl implements ReplayScene, Closeable {
         for (SceneHandler handler : handlers) {
             try {
                 handler.run(update, transition, this);
-            } catch (Throwable ignored) {
-                // continue dispatching to the remaining handlers
+            } catch (Throwable t) {
+                LOGGER.warn("Exception caught whilst dispatching an update to scene handler {}",
+                    handler.getClass().getName(), t);
             }
         }
     }
@@ -145,8 +152,9 @@ public final class ReplaySceneImpl implements ReplayScene, Closeable {
         for (int i = handlers.size() - 1; i >= 0; i--) {
             try {
                 handlers.get(i).stop(this);
-            } catch (Throwable ignored) {
-                // continue stopping the remaining handlers
+            } catch (Throwable t) {
+                LOGGER.warn("Exception caught whilst stopping scene handler {}",
+                    handlers.get(i).getClass().getName(), t);
             }
         }
         resources.clear();

@@ -86,7 +86,15 @@ final class ReelRecorderImpl implements ReelRecorder {
         ensureOpen();
         currentFrame++;
 
-        if (!segmentOpen || currentFrame % maxStride != 0) {
+        if (!segmentOpen) {
+            return;
+        }
+
+        for (EntityRecorderImpl entity : entities) {
+            entity.flushClosedWindows();
+        }
+
+        if (currentFrame % maxStride != 0) {
             return;
         }
 
@@ -381,6 +389,21 @@ final class ReelRecorderImpl implements ReelRecorder {
 
                 accumulator.snapshot = state.model.cloneState(accumulator.base);
                 accumulator.windowIndex = startFrame / strides[layer];
+            }
+        }
+
+        private void flushClosedWindows() {
+            for (TrackState<?, ?> ts : tracks.values()) {
+                for (int layer = 0; layer < layerStrategy.depth(); layer++) {
+                    flushClosedWindow(ts, layer);
+                }
+            }
+        }
+
+        private <S, D> void flushClosedWindow(TrackState<S, D> state, int layer) {
+            LayerAccumulator<S, D> accumulator = state.layers[layer];
+            if (accumulator.windowIndex != -1 && accumulator.windowIndex != currentFrame / strides[layer]) {
+                flush(state, layer);
             }
         }
 
