@@ -22,6 +22,9 @@ public interface ReelWriterListener {
     default void onSegmentEnd(long startFrame, long endFrame, boolean anchor) {
     }
 
+    default void onFrameAdvanced(long frame) {
+    }
+
     default void onFinish(long totalFrames) {
     }
 

@@ -39,6 +39,13 @@ class ReelMessageCodecTest {
     }
 
     @Test
+    void roundTripsHeadAdvanced() throws IOException {
+        ReelMessage decoded = roundTrip(new ReelMessage.HeadAdvanced(4097));
+        ReelMessage.HeadAdvanced message = assertInstanceOf(ReelMessage.HeadAdvanced.class, decoded);
+        assertEquals(4097L, message.headFrame());
+    }
+
+    @Test
     void roundTripsSegmentSealed() throws IOException {
         ReelMessage decoded = roundTrip(new ReelMessage.SegmentSealed(256, 512, false));
         ReelMessage.SegmentSealed message = assertInstanceOf(ReelMessage.SegmentSealed.class, decoded);

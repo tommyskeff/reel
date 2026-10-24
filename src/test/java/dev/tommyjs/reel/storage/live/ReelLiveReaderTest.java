@@ -307,12 +307,41 @@ class ReelLiveReaderTest {
     }
 
     @Test
+    void aPartialCoarseWindowDoesNotMoveTheHeadPastTheFinestLayer() {
+        try (ReelLiveReader reader = reader()) {
+            registerTypes(reader);
+            reader.accept(new ReelMessage.SegmentBegun(0, true));
+            FragmentEntry fine = LiveTestFixtures.entry(1L, 1L, LiveTestFixtures.statePayload(5));
+            FragmentEntry coarse = new FragmentEntry(fine.entityId(), fine.entityTypeId(), fine.trackTypeId(), 1, 0L,
+                LiveTestFixtures.statePayload(5));
+            reader.accept(LiveTestFixtures.fragment(0, 4, fine, coarse));
+
+            assertEquals(1L, reader.getHeadFrame());
+            assertEquals(2L, reader.getTotalFrames());
+        }
+    }
+
+    @Test
+    void advancesTheHeadWithoutAFragment() {
+        try (ReelLiveReader reader = reader()) {
+            registerTypes(reader);
+            reader.accept(new ReelMessage.SegmentBegun(0, true));
+            reader.accept(LiveTestFixtures.fragment(0, 1,
+                LiveTestFixtures.entry(1L, 0L, LiveTestFixtures.statePayload(5))));
+            reader.accept(new ReelMessage.HeadAdvanced(6));
+
+            assertEquals(7L, reader.getTotalFrames());
+        }
+    }
+
+    @Test
     void reportsItsOwnHeadState() {
         try (ReelLiveReader reader = reader()) {
             registerTypes(reader);
             reader.accept(new ReelMessage.SegmentBegun(0, true));
-            reader.accept(LiveTestFixtures.fragment(0, 3,
+            reader.accept(LiveTestFixtures.fragment(0, 1,
                 LiveTestFixtures.entry(1L, 0L, LiveTestFixtures.statePayload(5))));
+            reader.accept(new ReelMessage.HeadAdvanced(2));
 
             ReelHeadState state = reader.headState();
             assertEquals(2L, state.headFrame());

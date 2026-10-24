@@ -87,12 +87,14 @@ final class ReelRecorderImpl implements ReelRecorder {
         currentFrame++;
 
         if (!segmentOpen) {
+            writer.advanceFrame(currentFrame);
             return;
         }
 
         for (EntityRecorderImpl entity : entities) {
             entity.flushClosedWindows();
         }
+        writer.advanceFrame(currentFrame);
 
         if (currentFrame % maxStride != 0) {
             return;

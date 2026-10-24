@@ -15,6 +15,7 @@ public final class ReelMessageCodec {
     private static final int FRAGMENT = 3;
     private static final int SEGMENT_SEALED = 4;
     private static final int COMPLETE = 5;
+    private static final int HEAD_ADVANCED = 6;
 
     private ReelMessageCodec() {
     }
@@ -42,6 +43,9 @@ public final class ReelMessageCodec {
             ReelIOUtil.writeVarInt(out, m.startFrame());
             ReelIOUtil.writeVarInt(out, m.endFrame());
             out.writeByte(m.anchor() ? 1 : 0);
+        } else if (message instanceof ReelMessage.HeadAdvanced m) {
+            out.writeByte(HEAD_ADVANCED);
+            ReelIOUtil.writeVarInt(out, m.headFrame());
         } else if (message instanceof ReelMessage.Complete m) {
             out.writeByte(COMPLETE);
             ReelIOUtil.writeVarInt(out, m.totalFrames());
@@ -70,6 +74,7 @@ public final class ReelMessageCodec {
                 long endFrame = ReelIOUtil.readVarInt(in);
                 yield new ReelMessage.SegmentSealed(startFrame, endFrame, in.readByte() != 0);
             }
+            case HEAD_ADVANCED -> new ReelMessage.HeadAdvanced(ReelIOUtil.readVarInt(in));
             case COMPLETE -> new ReelMessage.Complete(ReelIOUtil.readVarInt(in));
             default -> throw new IOException("unknown reel message kind: " + kind);
         };

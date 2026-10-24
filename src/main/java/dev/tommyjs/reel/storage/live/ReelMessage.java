@@ -4,7 +4,8 @@ import dev.tommyjs.reel.track.TrackKind;
 import org.jetbrains.annotations.NotNull;
 
 public sealed interface ReelMessage permits ReelFragment, ReelMessage.EntityTypeRegistered,
-    ReelMessage.TrackTypeRegistered, ReelMessage.SegmentBegun, ReelMessage.SegmentSealed, ReelMessage.Complete {
+    ReelMessage.TrackTypeRegistered, ReelMessage.SegmentBegun, ReelMessage.SegmentSealed, ReelMessage.HeadAdvanced,
+    ReelMessage.Complete {
 
     record EntityTypeRegistered(@NotNull String identifier, int typeId) implements ReelMessage {
     }
@@ -17,6 +18,9 @@ public sealed interface ReelMessage permits ReelFragment, ReelMessage.EntityType
     }
 
     record SegmentSealed(long startFrame, long endFrame, boolean anchor) implements ReelMessage {
+    }
+
+    record HeadAdvanced(long headFrame) implements ReelMessage {
     }
 
     record Complete(long totalFrames) implements ReelMessage {
