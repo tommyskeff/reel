@@ -26,6 +26,9 @@ public interface ReelWriter extends Closeable {
 
     void endSegment(long endFrame);
 
+    default void advanceFrame(long frame) {
+    }
+
     void writeDelta(long entityId, int entityTypeId, int trackTypeId, int layer,
                     long windowStartFrame, @NotNull ByteBuf deltaBody);
 

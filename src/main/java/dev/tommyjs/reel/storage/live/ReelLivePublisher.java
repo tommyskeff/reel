@@ -23,6 +23,8 @@ public final class ReelLivePublisher implements ReelWriterListener {
 
     private long fragmentStart = Long.MAX_VALUE;
     private long fragmentEnd = Long.MIN_VALUE;
+    private long fragmentReached = -1;
+    private long advancedFrame = -1;
     private long headFrame = -1;
     private boolean complete;
     private long totalFrames;
@@ -62,6 +64,9 @@ public final class ReelLivePublisher implements ReelWriterListener {
 
         fragmentStart = Math.min(fragmentStart, windowStartFrame);
         fragmentEnd = Math.max(fragmentEnd, windowStartFrame + strides[layer]);
+        if (layer == 0) {
+            fragmentReached = Math.max(fragmentReached, windowStartFrame + strides[0] - 1);
+        }
     }
 
     @Override
@@ -81,16 +86,29 @@ public final class ReelLivePublisher implements ReelWriterListener {
         sink.accept(new ReelMessage.Complete(totalFrames));
     }
 
+    @Override
+    public void onFrameAdvanced(long frame) {
+        advancedFrame = Math.max(advancedFrame, frame - 1);
+    }
+
     public void flush() {
-        if (buffered.isEmpty()) {
-            return;
+        if (!buffered.isEmpty()) {
+            publishFragment();
         }
 
+        if (advancedFrame > headFrame) {
+            headFrame = advancedFrame;
+            sink.accept(new ReelMessage.HeadAdvanced(headFrame));
+        }
+    }
+
+    private void publishFragment() {
         ReelFragment fragment = new ReelFragment(fragmentStart, fragmentEnd, buffered);
         buffered.clear();
+        headFrame = Math.max(headFrame, fragmentReached);
         fragmentStart = Long.MAX_VALUE;
         fragmentEnd = Long.MIN_VALUE;
-        headFrame = Math.max(headFrame, fragment.endFrame() - 1);
+        fragmentReached = -1;
 
         try {
             sink.accept(fragment);

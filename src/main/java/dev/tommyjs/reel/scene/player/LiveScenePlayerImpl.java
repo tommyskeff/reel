@@ -65,7 +65,7 @@ final class LiveScenePlayerImpl extends AbstractScenePlayer implements LiveScene
         if (target > limit) {
             advanceTo(limit);
             position = limit;
-            if (scene.isComplete()) {
+            if (scene.isComplete() && limit >= scene.getTotalFrames() - 1) {
                 finishEnded();
             }
             return;

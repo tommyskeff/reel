@@ -252,6 +252,8 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
             beginSegment(m.startFrame(), m.anchor());
         } else if (message instanceof ReelMessage.SegmentSealed m) {
             sealSegment(m.startFrame(), m.endFrame(), m.anchor());
+        } else if (message instanceof ReelMessage.HeadAdvanced m) {
+            advanceHead(m.headFrame());
         } else if (message instanceof ReelMessage.Complete m) {
             totalFrames = m.totalFrames();
             advanceHead(m.totalFrames() - 1);
@@ -273,7 +275,7 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
 
         current.setEndFrame(fragment.endFrame());
         current.publish();
-        advanceHead(fragment.endFrame() - 1);
+        advanceHead(reachedFrame(fragment));
         rebuildSegmentDirectory();
         applyRetention();
     }
@@ -305,6 +307,16 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
         advanceHead(endFrame - 1);
         rebuildSegmentDirectory();
         applyRetention();
+    }
+
+    private long reachedFrame(ReelFragment fragment) {
+        long reached = -1;
+        for (FragmentEntry entry : fragment.entries()) {
+            if (entry.layer() == 0) {
+                reached = Math.max(reached, entry.windowStartFrame() + strides[0] - 1);
+            }
+        }
+        return reached;
     }
 
     private long alignedStart(long frame) {

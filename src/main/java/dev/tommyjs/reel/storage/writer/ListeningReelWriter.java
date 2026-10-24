@@ -68,6 +68,12 @@ public final class ListeningReelWriter implements ReelWriter {
     }
 
     @Override
+    public void advanceFrame(long frame) {
+        delegate.advanceFrame(frame);
+        dispatch(l -> l.onFrameAdvanced(frame));
+    }
+
+    @Override
     public void writeDelta(long entityId, int entityTypeId, int trackTypeId, int layer, long windowStartFrame,
                            @NotNull ByteBuf deltaBody) {
         emit(entityId, entityTypeId, trackTypeId, layer, windowStartFrame, new RawPayload.Delta(deltaBody.duplicate()));

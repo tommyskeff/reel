@@ -229,6 +229,36 @@ class LiveScenePlayerTest {
     }
 
     @Test
+    void doesNotEndWhileHeldBehindTheLastFrame() throws IOException {
+        advance(100);
+        LiveScenePlayer player = livePlayer(Duration.ofSeconds(1));
+        player.play();
+        player.tick(Duration.ofSeconds(10));
+
+        recorder.close();
+        player.setLiveDelay(Duration.ofSeconds(3));
+        player.tick(Duration.ofMillis(50));
+
+        assertEquals(player.getLiveTargetFrame(), player.getCurrentFrame());
+        assertEquals(PlaybackState.PLAYING, player.getState());
+    }
+
+    @Test
+    void followsTheHeadThroughFramesWithNoChanges() {
+        advance(40);
+        LiveScenePlayer player = livePlayer(Duration.ZERO);
+        long before = live.reader().getTotalFrames();
+
+        for (int i = 0; i < 20; i++) {
+            recorder.advanceFrame();
+            live.flush();
+        }
+
+        assertEquals(before + 20, live.reader().getTotalFrames());
+        assertEquals(live.reader().getTotalFrames() - 1, player.getLiveTargetFrame());
+    }
+
+    @Test
     void rejectsControlsThatHaveNoLiveMeaning() {
         advance(40);
         LiveScenePlayer player = livePlayer(Duration.ZERO);
