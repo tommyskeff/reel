@@ -9,6 +9,7 @@ import java.util.List;
 final class LiveScenePlayerImpl extends AbstractScenePlayer implements LiveScenePlayer {
 
     private long delayFrames;
+    private Duration sinceComplete = Duration.ZERO;
 
     LiveScenePlayerImpl(@NotNull ReplaySceneImpl scene, int baseFps, double speed, @NotNull Duration liveDelay,
                         @NotNull List<PlaybackListener> listeners) {
@@ -19,7 +20,11 @@ final class LiveScenePlayerImpl extends AbstractScenePlayer implements LiveScene
     @Override
     protected long limitFrame() {
         long last = scene.getTotalFrames() - 1;
-        return Math.max(0, scene.isComplete() ? last : last - delayFrames);
+        long behind = delayFrames;
+        if (scene.isComplete()) {
+            behind = Math.max(0, delayFrames - durationToFrame(sinceComplete));
+        }
+        return Math.max(0, last - behind);
     }
 
     @Override
@@ -47,6 +52,9 @@ final class LiveScenePlayerImpl extends AbstractScenePlayer implements LiveScene
 
     @Override
     public void tick(@NotNull Duration elapsed) {
+        if (scene.isComplete()) {
+            sinceComplete = sinceComplete.plus(elapsed);
+        }
         if (state != PlaybackState.PLAYING) {
             return;
         }

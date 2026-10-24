@@ -209,6 +209,26 @@ class LiveScenePlayerTest {
     }
 
     @Test
+    void keepsTheDelayWhilePlayingOutTheTail() throws IOException {
+        advance(100);
+        LiveScenePlayer player = livePlayer(Duration.ofSeconds(2));
+        player.play();
+        player.tick(Duration.ofSeconds(10));
+
+        recorder.close();
+        long last = live.reader().getTotalFrames() - 1;
+        player.tick(Duration.ofSeconds(1));
+
+        assertTrue(player.getCurrentFrame() < last - BASE_FPS / 2);
+        assertEquals(PlaybackState.PLAYING, player.getState());
+
+        player.tick(Duration.ofSeconds(2));
+
+        assertEquals(last, player.getCurrentFrame());
+        assertEquals(PlaybackState.ENDED, player.getState());
+    }
+
+    @Test
     void rejectsControlsThatHaveNoLiveMeaning() {
         advance(40);
         LiveScenePlayer player = livePlayer(Duration.ZERO);
