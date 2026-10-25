@@ -74,6 +74,16 @@ class AbstractActorTest {
         assertEquals(List.of(7, 8), entity.events);
     }
 
+    @Test
+    void knowsItsEntityIdWhenCreated() {
+        TestEntity entity = entity(true);
+        EntityUpdateImpl update = new EntityUpdateImpl(42L, PLAYER, new LinkedHashMap<>());
+        update.putUpdate(POSITION, new TrackUpdate.Snapshot<>(new IntState(0)));
+
+        entity.apply(update, new SceneTransition(-1, 0, false), scene);
+        assertEquals(42L, entity.createdAs);
+    }
+
     private static EntityUpdate eventUpdate(int code) {
         EntityUpdateImpl update = new EntityUpdateImpl(1L, PLAYER, new LinkedHashMap<>());
         update.putUpdate(POSITION, new TrackUpdate.Snapshot<>(new IntState(0)));
@@ -90,6 +100,7 @@ class AbstractActorTest {
         private final boolean skipJumps;
         private final List<Integer> events = new ArrayList<>();
         private boolean created;
+        private long createdAs = -1;
 
         private TestEntity(boolean skipJumps) {
             this.skipJumps = skipJumps;
@@ -99,7 +110,10 @@ class AbstractActorTest {
         protected void configure() {
             TrackHandle<IntState, IntDelta> position = POSITION;
             TrackHandle<Void, Signal> signal = SIGNAL;
-            onCreate(position, p -> created = true);
+            onCreate(position, p -> {
+                created = true;
+                createdAs = getEntityId();
+            });
             onEvent(signal, skipJumps, s -> events.add(s.code()));
         }
 

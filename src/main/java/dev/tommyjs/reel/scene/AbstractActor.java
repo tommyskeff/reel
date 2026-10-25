@@ -25,6 +25,7 @@ public abstract class AbstractActor implements SceneActor {
     private final Map<TrackHandle<?, ?>, Object> resolvedStates;
 
     private volatile TrackHandle<?, ?> createTrack;
+    private volatile long entityId = -1;
     private volatile boolean configured;
     private volatile boolean created;
 
@@ -84,6 +85,10 @@ public abstract class AbstractActor implements SceneActor {
         binding.eventSkipJumps = skipJumps;
     }
 
+    protected final long getEntityId() {
+        return entityId;
+    }
+
     protected final void onFrame(@NotNull Runnable fn) {
         frameHooks.add(fn);
     }
@@ -96,6 +101,7 @@ public abstract class AbstractActor implements SceneActor {
     public final void apply(@NotNull EntityUpdate update, @NotNull SceneTransition transition, @NotNull ReplayScene scene) {
         this.scene = scene;
         this.transition = transition;
+        this.entityId = update.getEntityId();
 
         if (!configured) {
             configure();
