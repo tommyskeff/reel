@@ -11,6 +11,7 @@ import io.netty.buffer.Unpooled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -87,6 +88,49 @@ class ReelLiveReaderTest {
             assertEquals(2L, tail.getEndFrame());
             assertEquals(1, tail.getWindow(0, 0).size());
             assertEquals(1, tail.getWindow(0, 1).size());
+        }
+    }
+
+    @Test
+    void acceptsABatchAcrossASealedSegment() {
+        try (ReelLiveReader reader = reader()) {
+            registerTypes(reader);
+            reader.acceptAll(List.of(
+                new ReelMessage.SegmentBegun(0, true),
+                LiveTestFixtures.fragment(0, 1, LiveTestFixtures.entry(1L, 0L, LiveTestFixtures.statePayload(5))),
+                new ReelMessage.SegmentSealed(0, 4, true),
+                new ReelMessage.SegmentBegun(4, false),
+                LiveTestFixtures.fragment(4, 5, LiveTestFixtures.entry(1L, 4L, LiveTestFixtures.deltaPayload(1))),
+                LiveTestFixtures.fragment(5, 6, LiveTestFixtures.entry(1L, 5L, LiveTestFixtures.deltaPayload(2)))
+            ));
+
+            assertEquals(5L, reader.getHeadFrame());
+            assertEquals(6L, reader.getTotalFrames());
+            assertEquals(2, reader.readSegmentDirectory().size());
+            assertEquals(6L, reader.readSegmentDirectory().segments().get(1).endFrame());
+            SegmentView tail = reader.readSegment(1);
+            assertEquals(4L, tail.getStartFrame());
+            assertEquals(6L, tail.getEndFrame());
+            assertEquals(1, tail.getWindow(0, 0).size());
+            assertEquals(1, tail.getWindow(0, 1).size());
+        }
+    }
+
+    @Test
+    void publishesABatchOnceItIsWhole() {
+        try (ReelLiveReader reader = reader()) {
+            registerTypes(reader);
+            reader.accept(new ReelMessage.SegmentBegun(0, true));
+            long before = reader.getRevision();
+            reader.acceptAll(List.of(
+                LiveTestFixtures.fragment(0, 1, LiveTestFixtures.entry(1L, 0L, LiveTestFixtures.statePayload(5))),
+                LiveTestFixtures.fragment(1, 2, LiveTestFixtures.entry(1L, 1L, LiveTestFixtures.deltaPayload(2)))
+            ));
+
+            assertTrue(reader.getRevision() > before);
+            assertEquals(1L, reader.getHeadFrame());
+            assertEquals(2L, reader.readSegment(0).getEndFrame());
+            assertEquals(1, reader.readSegment(0).getWindow(0, 1).size());
         }
     }
 

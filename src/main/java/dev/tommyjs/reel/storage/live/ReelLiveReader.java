@@ -7,6 +7,7 @@ import io.netty.buffer.ByteBuf;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.util.List;
 
 public interface ReelLiveReader extends ReelReader {
 
@@ -15,6 +16,8 @@ public interface ReelLiveReader extends ReelReader {
     }
 
     void accept(@NotNull ReelMessage message);
+
+    void acceptAll(@NotNull List<? extends ReelMessage> messages);
 
     void acceptDirectories(@NotNull EntityTypeDirectory types, @NotNull TrackDirectory tracks);
 
