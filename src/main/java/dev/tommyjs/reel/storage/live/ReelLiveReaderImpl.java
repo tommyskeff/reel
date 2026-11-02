@@ -48,6 +48,8 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
     private volatile MutableSegment tail;
     private volatile int sealedCount;
     private int evictedBefore;
+    private boolean tailDirty;
+    private long tailReachedFrame = -1;
     private boolean closed;
 
     ReelLiveReaderImpl(@NotNull LayerStrategy layerStrategy, @NotNull ReelCompressor compression,
@@ -170,6 +172,7 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
             }
             rebuildDirectories();
             drainPending();
+            flushTail();
             bump();
         } finally {
             writeLock.unlock();
@@ -180,37 +183,55 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
     public void accept(@NotNull ReelMessage message) {
         writeLock.lock();
         try {
-            if (closed) {
-                releaseIfFragment(message);
-                return;
-            }
-
-            if (message instanceof ReelMessage.EntityTypeRegistered m) {
-                registerEntityType(m.identifier(), m.typeId());
-                rebuildDirectories();
-                drainPending();
-                bump();
-                return;
-            }
-
-            if (message instanceof ReelMessage.TrackTypeRegistered m) {
-                registerTrackType(m.identifier(), m.typeId(), m.codecVersion(), m.kind());
-                rebuildDirectories();
-                drainPending();
-                bump();
-                return;
-            }
-
-            if (!pending.isEmpty() || blockedOn(message)) {
-                enqueue(message);
-                return;
-            }
-
-            apply(message);
-            bump();
+            acceptLocked(message);
+            flushTail();
         } finally {
             writeLock.unlock();
         }
+    }
+
+    @Override
+    public void acceptAll(@NotNull List<? extends ReelMessage> messages) {
+        writeLock.lock();
+        try {
+            for (ReelMessage message : messages) {
+                acceptLocked(message);
+            }
+            flushTail();
+        } finally {
+            writeLock.unlock();
+        }
+    }
+
+    private void acceptLocked(ReelMessage message) {
+        if (closed) {
+            releaseIfFragment(message);
+            return;
+        }
+
+        if (message instanceof ReelMessage.EntityTypeRegistered m) {
+            registerEntityType(m.identifier(), m.typeId());
+            rebuildDirectories();
+            drainPending();
+            bump();
+            return;
+        }
+
+        if (message instanceof ReelMessage.TrackTypeRegistered m) {
+            registerTrackType(m.identifier(), m.typeId(), m.codecVersion(), m.kind());
+            rebuildDirectories();
+            drainPending();
+            bump();
+            return;
+        }
+
+        if (!pending.isEmpty() || blockedOn(message)) {
+            enqueue(message);
+            return;
+        }
+
+        apply(message);
+        bump();
     }
 
     @Override
@@ -274,10 +295,23 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
         }
 
         current.setEndFrame(fragment.endFrame());
-        current.publish();
-        advanceHead(reachedFrame(fragment));
+        tailReachedFrame = Math.max(tailReachedFrame, reachedFrame(fragment));
+        tailDirty = true;
+    }
+
+    private void flushTail() {
+        if (!tailDirty) {
+            return;
+        }
+        tailDirty = false;
+        MutableSegment current = tail;
+        if (current != null) {
+            current.publish();
+        }
         rebuildSegmentDirectory();
+        advanceHead(tailReachedFrame);
         applyRetention();
+        bump();
     }
 
     private void beginSegment(long startFrame, boolean anchor) {
