@@ -4,6 +4,8 @@ import dev.tommyjs.reel.storage.model.*;
 import dev.tommyjs.reel.storage.writer.LayerStrategy;
 import dev.tommyjs.reel.storage.writer.ReelWriterListener;
 import dev.tommyjs.reel.track.TrackKind;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.util.ReferenceCountUtil;
 import org.jetbrains.annotations.NotNull;
 
@@ -75,6 +77,11 @@ public final class ReelLivePublisher implements ReelWriterListener {
         segmentEntries.add(new SegmentEntry(startFrame, endFrame, 0L, 0L, anchor));
         headFrame = Math.max(headFrame, endFrame - 1);
         sink.accept(new ReelMessage.SegmentSealed(startFrame, endFrame, anchor));
+    }
+
+    @Override
+    public void onSegmentEncoded(long startFrame, long endFrame, boolean anchor, @NotNull ByteBuf compressed) {
+        sink.accept(new ReelMessage.SegmentStored(startFrame, endFrame, anchor, ByteBufUtil.getBytes(compressed)));
     }
 
     @Override

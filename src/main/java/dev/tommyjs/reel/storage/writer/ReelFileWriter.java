@@ -30,6 +30,7 @@ public final class ReelFileWriter implements ReelWriter {
     private final ByteBufAllocator allocator;
     private final @NotNull LayerStrategy layerStrategy;
     private final @NotNull ReelCompressor compression;
+    private final @NotNull ReelWriterListener segmentListener;
 
     private final EntityTypeRegistry entityTypes;
     private final TrackTypeRegistry trackTypes;
@@ -48,10 +49,18 @@ public final class ReelFileWriter implements ReelWriter {
 
     public ReelFileWriter(@NotNull ReelByteSink sink, @NotNull ByteBufAllocator allocator,
                           @NotNull LayerStrategy layerStrategy, @NotNull ReelCompressor compression) {
+        this(sink, allocator, layerStrategy, compression, new ReelWriterListener() {
+        });
+    }
+
+    public ReelFileWriter(@NotNull ReelByteSink sink, @NotNull ByteBufAllocator allocator,
+                          @NotNull LayerStrategy layerStrategy, @NotNull ReelCompressor compression,
+                          @NotNull ReelWriterListener segmentListener) {
         this.sink = sink;
         this.allocator = allocator;
         this.layerStrategy = layerStrategy;
         this.compression = compression;
+        this.segmentListener = segmentListener;
         this.entityTypes = new EntityTypeRegistry();
         this.trackTypes = new TrackTypeRegistry();
         this.segmentEntries = new ArrayList<>();
@@ -164,6 +173,8 @@ public final class ReelFileWriter implements ReelWriter {
 
             long encodedSize = compressed.readableBytes();
             long byteOffset = sink.position() - segmentDataSectionOffset;
+            segmentListener.onSegmentEncoded(segment.getStartFrame(), endFrame, pendingSegment.isAnchor(),
+                compressed.duplicate());
             writeData(compressed);
             segmentEntries.add(
                 new SegmentEntry(segment.getStartFrame(), endFrame, byteOffset, encodedSize, pendingSegment.isAnchor()));

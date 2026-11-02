@@ -5,7 +5,7 @@ import org.jetbrains.annotations.NotNull;
 
 public sealed interface ReelMessage permits ReelFragment, ReelMessage.EntityTypeRegistered,
     ReelMessage.TrackTypeRegistered, ReelMessage.SegmentBegun, ReelMessage.SegmentSealed, ReelMessage.HeadAdvanced,
-    ReelMessage.Complete {
+    ReelMessage.SegmentStored, ReelMessage.Complete {
 
     record EntityTypeRegistered(@NotNull String identifier, int typeId) implements ReelMessage {
     }
@@ -21,6 +21,10 @@ public sealed interface ReelMessage permits ReelFragment, ReelMessage.EntityType
     }
 
     record HeadAdvanced(long headFrame) implements ReelMessage {
+    }
+
+    record SegmentStored(long startFrame, long endFrame, boolean anchor, byte @NotNull [] compressed)
+        implements ReelMessage {
     }
 
     record Complete(long totalFrames) implements ReelMessage {

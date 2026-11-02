@@ -75,8 +75,11 @@ public final class ReelWriterBuilder {
             throw new IllegalStateException("byte sink must be set");
         }
 
-        ReelWriter writer = new ReelFileWriter(sink, allocator, layerStrategy, compression);
-        return listeners.isEmpty() ? writer : new ListeningReelWriter(writer, listeners);
+        if (listeners.isEmpty()) {
+            return new ReelFileWriter(sink, allocator, layerStrategy, compression);
+        }
+        return new ListeningReelWriter(
+            segments -> new ReelFileWriter(sink, allocator, layerStrategy, compression, segments), listeners);
     }
 
 }

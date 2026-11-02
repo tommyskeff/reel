@@ -55,6 +55,16 @@ class ReelMessageCodecTest {
     }
 
     @Test
+    void roundTripsSegmentStored() throws IOException {
+        ReelMessage decoded = roundTrip(new ReelMessage.SegmentStored(256, 512, true, new byte[]{1, 2, 3}));
+        ReelMessage.SegmentStored message = assertInstanceOf(ReelMessage.SegmentStored.class, decoded);
+        assertEquals(256L, message.startFrame());
+        assertEquals(512L, message.endFrame());
+        assertTrue(message.anchor());
+        assertArrayEquals(new byte[]{1, 2, 3}, message.compressed());
+    }
+
+    @Test
     void roundTripsComplete() throws IOException {
         ReelMessage decoded = roundTrip(new ReelMessage.Complete(1234));
         assertEquals(1234L, assertInstanceOf(ReelMessage.Complete.class, decoded).totalFrames());

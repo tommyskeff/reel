@@ -5,13 +5,17 @@ import dev.tommyjs.reel.TestFixtures.IntDelta;
 import dev.tommyjs.reel.TestFixtures.IntState;
 import dev.tommyjs.reel.recorder.EntityRecorder;
 import dev.tommyjs.reel.recorder.ReelRecorder;
+import dev.tommyjs.reel.storage.codec.SegmentCodec;
+import dev.tommyjs.reel.storage.model.Segment;
 import dev.tommyjs.reel.storage.model.RawPayload;
 import dev.tommyjs.reel.track.TrackKind;
+import io.netty.buffer.ByteBuf;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -113,6 +117,49 @@ class ReelWriterListenerTest {
             }
             assertTrue(span.endFrame() > span.startFrame());
             previousEnd = span.endFrame();
+        }
+    }
+
+    @Test
+    void handsOverEachEncodedSegmentAfterItEnds() throws IOException {
+        List<String> events = new ArrayList<>();
+        ReelWriterListener listener = new ReelWriterListener() {
+            @Override
+            public void onSegmentEnd(long startFrame, long endFrame, boolean anchor) {
+                events.add("end " + startFrame + ".." + endFrame);
+            }
+
+            @Override
+            public void onSegmentEncoded(long startFrame, long endFrame, boolean anchor, @NotNull ByteBuf compressed) {
+                try (Segment segment = SegmentCodec.decodeCompressed(compressed, compressed.readableBytes(), 2)) {
+                    events.add("encoded " + segment.getStartFrame() + ".." + endFrame);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
+
+        try (ReelRecorder recorder = ReelRecorder.builder()
+            .setWriter(w -> w.setFile(tmp.resolve("encoded.reel").toFile())
+                .setLayerStrategy(new LayerStrategy(new long[]{1, 4}))
+                .addListener(listener))
+            .setTrackRegistry(TestFixtures.registry())
+            .setSegmentLength(4)
+            .setIdleThreshold(0)
+            .build()) {
+
+            EntityRecorder entity = recorder.createEntity(PLAYER);
+            entity.recordState(POSITION, new IntState(0));
+            for (int i = 0; i < 8; i++) {
+                recorder.advanceFrame();
+                entity.recordDelta(POSITION, new IntDelta(1));
+            }
+        }
+
+        assertTrue(events.size() >= 4);
+        for (int i = 0; i < events.size(); i += 2) {
+            assertTrue(events.get(i).startsWith("end "));
+            assertEquals(events.get(i).replace("end ", "encoded "), events.get(i + 1));
         }
     }
 
