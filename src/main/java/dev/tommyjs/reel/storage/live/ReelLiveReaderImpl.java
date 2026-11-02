@@ -5,6 +5,7 @@ import dev.tommyjs.reel.storage.codec.SegmentCodec;
 import dev.tommyjs.reel.storage.model.*;
 import dev.tommyjs.reel.storage.writer.LayerStrategy;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -252,18 +253,39 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
                     + sealedEntries.get(sealedEntries.size() - 1).endFrame());
             }
 
-            discardTail();
-            int index = sealedEntries.size();
-            sealedEntries.add(new SegmentEntry(startFrame, endFrame, 0L, 0L, anchor));
-            sealedCount = sealedEntries.size();
-            segmentData.put(index, decoded);
-            advanceHead(endFrame - 1);
-            rebuildSegmentDirectory();
-            applyRetention();
+            installSegment(startFrame, endFrame, anchor, decoded);
             bump();
         } finally {
             writeLock.unlock();
         }
+    }
+
+    private void storeSegment(ReelMessage.SegmentStored stored) {
+        if (!sealedEntries.isEmpty() && stored.startFrame() < sealedEntries.get(sealedEntries.size() - 1).endFrame()) {
+            return;
+        }
+
+        Segment decoded;
+        try {
+            decoded = SegmentCodec.decodeCompressed(Unpooled.wrappedBuffer(stored.compressed()),
+                stored.compressed().length, layerCount, compression);
+        } catch (IOException e) {
+            LOGGER.warn("dropping an unreadable stored segment: start_frame={}, end_frame={}", stored.startFrame(),
+                stored.endFrame(), e);
+            return;
+        }
+        installSegment(stored.startFrame(), stored.endFrame(), stored.anchor(), decoded);
+    }
+
+    private void installSegment(long startFrame, long endFrame, boolean anchor, Segment decoded) {
+        discardTail();
+        int index = sealedEntries.size();
+        sealedEntries.add(new SegmentEntry(startFrame, endFrame, 0L, 0L, anchor));
+        sealedCount = sealedEntries.size();
+        segmentData.put(index, decoded);
+        advanceHead(endFrame - 1);
+        rebuildSegmentDirectory();
+        applyRetention();
     }
 
     private void apply(ReelMessage message) {
@@ -275,6 +297,8 @@ final class ReelLiveReaderImpl implements ReelLiveReader {
             sealSegment(m.startFrame(), m.endFrame(), m.anchor());
         } else if (message instanceof ReelMessage.HeadAdvanced m) {
             advanceHead(m.headFrame());
+        } else if (message instanceof ReelMessage.SegmentStored m) {
+            storeSegment(m);
         } else if (message instanceof ReelMessage.Complete m) {
             totalFrames = m.totalFrames();
             advanceHead(m.totalFrames() - 1);

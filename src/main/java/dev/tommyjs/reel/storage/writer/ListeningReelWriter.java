@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 public final class ListeningReelWriter implements ReelWriter {
 
@@ -22,10 +23,23 @@ public final class ListeningReelWriter implements ReelWriter {
 
     private long segmentStartFrame;
     private boolean segmentAnchor;
+    private @Nullable ByteBuf encodedSegment;
 
     public ListeningReelWriter(@NotNull ReelWriter delegate, @NotNull List<ReelWriterListener> listeners) {
         this.delegate = delegate;
         this.listeners = List.copyOf(listeners);
+    }
+
+    public ListeningReelWriter(@NotNull Function<ReelWriterListener, ReelWriter> delegate,
+                               @NotNull List<ReelWriterListener> listeners) {
+        this.listeners = List.copyOf(listeners);
+        this.delegate = delegate.apply(new ReelWriterListener() {
+            @Override
+            public void onSegmentEncoded(long startFrame, long endFrame, boolean anchor, @NotNull ByteBuf compressed) {
+                ReferenceCountUtil.safeRelease(encodedSegment);
+                encodedSegment = compressed.retainedDuplicate();
+            }
+        });
     }
 
     @Override
@@ -63,8 +77,17 @@ public final class ListeningReelWriter implements ReelWriter {
     public void endSegment(long endFrame) {
         long startFrame = segmentStartFrame;
         boolean anchor = segmentAnchor;
-        delegate.endSegment(endFrame);
-        dispatch(l -> l.onSegmentEnd(startFrame, endFrame, anchor));
+        try {
+            delegate.endSegment(endFrame);
+            dispatch(l -> l.onSegmentEnd(startFrame, endFrame, anchor));
+            ByteBuf compressed = encodedSegment;
+            if (compressed != null) {
+                dispatch(l -> l.onSegmentEncoded(startFrame, endFrame, anchor, compressed.duplicate()));
+            }
+        } finally {
+            ReferenceCountUtil.safeRelease(encodedSegment);
+            encodedSegment = null;
+        }
     }
 
     @Override

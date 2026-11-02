@@ -2,6 +2,7 @@ package dev.tommyjs.reel.storage.writer;
 
 import dev.tommyjs.reel.storage.model.RawPayload;
 import dev.tommyjs.reel.track.TrackKind;
+import io.netty.buffer.ByteBuf;
 import org.jetbrains.annotations.NotNull;
 
 public interface ReelWriterListener {
@@ -20,6 +21,9 @@ public interface ReelWriterListener {
     }
 
     default void onSegmentEnd(long startFrame, long endFrame, boolean anchor) {
+    }
+
+    default void onSegmentEncoded(long startFrame, long endFrame, boolean anchor, @NotNull ByteBuf compressed) {
     }
 
     default void onFrameAdvanced(long frame) {
