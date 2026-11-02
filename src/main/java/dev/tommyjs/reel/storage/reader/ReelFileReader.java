@@ -90,8 +90,19 @@ public final class ReelFileReader implements ReelReader {
 
     @Override
     public @NotNull SegmentView readSegment(int segmentIndex) {
+        TrackDirectory td = readTrackDirectory();
+        ByteBuf compressed = readCompressedSegment(segmentIndex);
         try {
-            TrackDirectory td = readTrackDirectory();
+            return SegmentCodec.decodeCompressed(compressed, compressed.readableBytes(), td.layerCount(), compression);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } finally {
+            ReferenceCountUtil.safeRelease(compressed);
+        }
+    }
+
+    public @NotNull ByteBuf readCompressedSegment(int segmentIndex) {
+        try {
             SegmentEntry entry = readSegmentDirectory().segments().get(segmentIndex);
 
             long absoluteOffset = layout.segmentDataOffset() + entry.byteOffset();
@@ -100,12 +111,7 @@ public final class ReelFileReader implements ReelReader {
                 throw new IOException("segment[" + segmentIndex + "] byte_size exceeds 2 GiB: " + byteSize);
             }
 
-            ByteBuf compressed = source.read(allocator, absoluteOffset, (int) byteSize);
-            try {
-                return SegmentCodec.decodeCompressed(compressed, (int) byteSize, td.layerCount(), compression);
-            } finally {
-                ReferenceCountUtil.safeRelease(compressed);
-            }
+            return source.read(allocator, absoluteOffset, (int) byteSize);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

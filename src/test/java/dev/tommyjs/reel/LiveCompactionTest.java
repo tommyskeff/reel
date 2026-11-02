@@ -11,14 +11,18 @@ import dev.tommyjs.reel.storage.live.ReelLivePublisher;
 import dev.tommyjs.reel.storage.live.ReelLiveReader;
 import dev.tommyjs.reel.storage.live.ReelMessage;
 import dev.tommyjs.reel.storage.live.ReelMessageCodec;
+import dev.tommyjs.reel.storage.model.SegmentEntry;
+import dev.tommyjs.reel.storage.reader.ReelFileReader;
 import dev.tommyjs.reel.storage.writer.LayerStrategy;
 import dev.tommyjs.reel.track.TrackRegistry;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -88,6 +92,36 @@ class LiveCompactionTest {
         }
     }
 
+    @Test
+    void aReaderLoadedFromTheFinishedFileSeesWhatAFollowerSaw() throws IOException {
+        File file = tmp.resolve("finished.reel").toFile();
+        List<byte[]> recorded = new ArrayList<>();
+        record(file, recorded);
+
+        try (ReelLiveReader follower = reader(); ReelLiveReader loaded = reader();
+             ReelFileReader finished = new ReelFileReader(file, ByteBufAllocator.DEFAULT)) {
+            for (ReelMessage message : decodeAll(recorded)) {
+                follower.accept(message);
+            }
+            loaded.acceptDirectories(finished.readTypeDirectory(), finished.readTrackDirectory());
+            List<SegmentEntry> segments = finished.readSegmentDirectory().segments();
+            for (int index = 0; index < segments.size(); index++) {
+                SegmentEntry segment = segments.get(index);
+                ByteBuf compressed = finished.readCompressedSegment(index);
+                try {
+                    loaded.accept(new ReelMessage.SegmentStored(segment.startFrame(), segment.endFrame(), segment.anchor(),
+                        ByteBufUtil.getBytes(compressed)));
+                } finally {
+                    compressed.release();
+                }
+            }
+            loaded.accept(new ReelMessage.Complete(finished.getTotalFrames()));
+
+            assertTrue(follower.isComplete());
+            assertSameFrames(follower, loaded);
+        }
+    }
+
     private void assertSameFrames(ReelLiveReader expected, ReelLiveReader actual) {
         TrackRegistry registry = TestFixtures.registry();
         assertEquals(expected.getHeadFrame(), actual.getHeadFrame());
@@ -99,12 +133,15 @@ class LiveCompactionTest {
     }
 
     private List<byte[]> record() {
-        List<byte[]> recorded = new ArrayList<>();
+        return record(tmp.resolve("compaction-" + System.nanoTime() + ".reel").toFile(), new ArrayList<>());
+    }
+
+    private List<byte[]> record(File file, List<byte[]> recorded) {
         ReelLivePublisher publisher = new ReelLivePublisher(STRATEGY, message -> recorded.add(encode(message)));
         TrackRegistry registry = TestFixtures.registry();
         List<byte[]> snapshot;
         try (ReelRecorder recorder = ReelRecorder.builder()
-            .setWriter(w -> w.setFile(tmp.resolve("compaction-" + System.nanoTime() + ".reel").toFile())
+            .setWriter(w -> w.setFile(file)
                 .setLayerStrategy(STRATEGY)
                 .addListener(publisher))
             .setTrackRegistry(registry)
