@@ -136,7 +136,7 @@ class ReelRecorderImplTest {
 
         assertTrue(previous.refCnt() > 0, "writer received a released buffer");
         try {
-            int value = stateCodec.decode(previous).value();
+            Integer value = previous.isReadable() ? stateCodec.decode(previous).value() : null;
             closes.add(new CloseEntry(entityId, entityTypeId, trackTypeId, layer, startFrame, value));
         } finally {
             previous.release();
@@ -369,7 +369,7 @@ class ReelRecorderImplTest {
     }
 
     @Test
-    void eventTracksEmitNoCloseEntries() throws IOException {
+    void eventOnlyEntityClosesOnItsEventTrack() throws IOException {
         ReelRecorder recorder = newRecorder(TestFixtures.eventRegistry());
         EntityRecorder entity = recorder.createEntity(PLAYER);
 
@@ -379,7 +379,21 @@ class ReelRecorderImplTest {
         entity.close();
         recorder.close();
 
-        assertTrue(closes.isEmpty(), () -> "got " + closes);
+        assertEquals(List.of(new CloseEntry(0L, 0, 0, 0, 2L, null), new CloseEntry(0L, 0, 0, 1, 0L, null)), closes);
+    }
+
+    @Test
+    void entityWithStateTracksClosesOnlyThoseTracks() throws IOException {
+        ReelRecorder recorder = newRecorder(TestFixtures.eventRegistry());
+        EntityRecorder entity = recorder.createEntity(PLAYER);
+
+        entity.recordState(POSITION, new IntState(5));
+        entity.recordEvent(SIGNAL, new TestFixtures.Signal(1));
+        recorder.advanceFrame();
+        entity.close();
+        recorder.close();
+
+        assertEquals(List.of(new CloseEntry(0L, 0, 0, 0, 1L, 5), new CloseEntry(0L, 0, 0, 1, 0L, 5)), closes);
     }
 
     @Test
@@ -452,7 +466,7 @@ class ReelRecorderImplTest {
                          long startFrame, int value, boolean hasPrevious) {
     }
 
-    private record CloseEntry(long entityId, int entityTypeId, int trackTypeId, int layer, long startFrame, int value) {
+    private record CloseEntry(long entityId, int entityTypeId, int trackTypeId, int layer, long startFrame, Integer value) {
     }
 
     private record EventEntry(long entityId, int entityTypeId, int trackTypeId, int layer, long startFrame,

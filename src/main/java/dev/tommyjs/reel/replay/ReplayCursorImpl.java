@@ -160,7 +160,7 @@ final class ReplayCursorImpl implements ReplayCursor {
                         if (steps == null) {
                             closed.add(entityId);
                             present.remove(entityId);
-                        } else if (!steps.isEmpty()) {
+                        } else {
                             EntityUpdateImpl update = (EntityUpdateImpl) entities.computeIfAbsent(entityId,
                                 id -> new EntityUpdateImpl(id, type, new LinkedHashMap<>()));
                             for (TrackUpdate<?, ?> step : steps) {
@@ -231,7 +231,12 @@ final class ReplayCursorImpl implements ReplayCursor {
 
         boolean reversed = rs.reversed();
         if (payload instanceof RawPayload.Close closePayload) {
-            return reversed ? List.of(new TrackUpdate.Snapshot(stateCodec.decode(closePayload.body()))) : null;
+            if (!reversed) {
+                return null;
+            }
+            return rs.kind() == TrackKind.EVENT
+                ? List.of()
+                : List.of(new TrackUpdate.Snapshot(stateCodec.decode(closePayload.body())));
         }
 
         if (payload instanceof RawPayload.Event eventPayload) {
