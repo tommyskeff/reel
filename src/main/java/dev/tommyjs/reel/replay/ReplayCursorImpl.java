@@ -176,7 +176,12 @@ final class ReplayCursorImpl implements ReplayCursor {
                 }
             }
 
-            entities.keySet().removeAll(closed);
+            boolean steppingForward = !res.complete() && targetFrame > currentFrame;
+            for (long id : closed) {
+                if (!steppingForward || !liveEntities.contains(id)) {
+                    entities.remove(id);
+                }
+            }
 
             Set<Long> removed = new LinkedHashSet<>();
             if (res.complete()) {

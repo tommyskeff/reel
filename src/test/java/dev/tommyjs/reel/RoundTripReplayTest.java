@@ -467,6 +467,63 @@ class RoundTripReplayTest {
         }
     }
 
+    @Test
+    void closingFrameUpdatesReachAStepForwardButNotAScrub() throws IOException {
+        File file = tmp.resolve("rt-closing-frame.reel").toFile();
+        TrackRegistry registry = TestFixtures.eventRegistry();
+        IntModel trackModel = TestFixtures.intModel();
+
+        long pId;
+        long qId;
+        try (ReelRecorder recorder = ReelRecorder.builder()
+            .setWriter(w -> w.setFile(file).setLayerStrategy(new LayerStrategy(new long[]{1, 4})))
+            .setTrackRegistry(registry)
+            .setSingleSegment()
+            .setIdleThreshold(0)
+            .build()) {
+
+            EntityRecorder p = recorder.createEntity(PLAYER);
+            EntityRecorder q = recorder.createEntity(PLAYER);
+            pId = p.entityId();
+            qId = q.entityId();
+
+            p.recordState(POSITION, new IntState(0));
+            q.recordState(POSITION, new IntState(100));
+            recorder.advanceFrame();
+            recorder.advanceFrame();
+            q.recordDelta(POSITION, new IntDelta(5));
+            q.recordEvent(SIGNAL, new TestFixtures.Signal(9));
+            q.close();
+            recorder.advanceFrame();
+            p.recordDelta(POSITION, new IntDelta(1));
+            recorder.advanceFrame();
+        }
+
+        try (ReplayCursor cursor = ReplayCursor.fromFile(file, registry)) {
+            Map<Long, IntState> model = new HashMap<>();
+            AtomicReference<ReplayUpdate> last = new AtomicReference<>();
+            cursor.addListener(update -> applyModel(model, trackModel, last, update));
+
+            cursor.seek(1);
+            cursor.seek(2);
+            assertEquals(List.of(9), signals(last.get(), qId));
+            assertTrue(last.get().getRemoved().contains(qId));
+            assertFalse(model.containsKey(qId));
+
+            cursor.seek(1);
+            assertEquals(new IntState(100), model.get(qId));
+        }
+
+        try (ReplayCursor cursor = ReplayCursor.fromFile(file, registry)) {
+            List<ReplayUpdate> updates = new ArrayList<>();
+            cursor.addListener(updates::add);
+
+            cursor.seek(3);
+            assertTrue(updates.stream().noneMatch(update -> update.getEntity(qId) != null));
+            assertTrue(updates.stream().anyMatch(update -> update.getEntity(pId) != null));
+        }
+    }
+
     private static void applyModel(Map<Long, IntState> model, IntModel trackModel, AtomicReference<ReplayUpdate> last,
                                    ReplayUpdate update) {
         last.set(update);
