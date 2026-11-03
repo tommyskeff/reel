@@ -351,6 +351,57 @@ class RoundTripReplayTest {
     }
 
     @Test
+    void closedEventOnlyEntityIsRemovedAndRestoredOnRewind() throws IOException {
+        File file = tmp.resolve("rt-event-only-close.reel").toFile();
+        TrackRegistry registry = TestFixtures.eventRegistry();
+
+        long qId;
+        try (ReelRecorder recorder = ReelRecorder.builder()
+            .setWriter(w -> w.setFile(file).setLayerStrategy(new LayerStrategy(new long[]{1, 4})))
+            .setTrackRegistry(registry)
+            .setSingleSegment()
+            .setIdleThreshold(0)
+            .build()) {
+
+            EntityRecorder p = recorder.createEntity(PLAYER);
+            EntityRecorder q = recorder.createEntity(PLAYER);
+            qId = q.entityId();
+
+            p.recordState(POSITION, new IntState(0));
+            recorder.advanceFrame();
+            q.recordEvent(SIGNAL, new TestFixtures.Signal(1));
+            recorder.advanceFrame();
+            recorder.advanceFrame();
+            q.close();
+            for (int frame = 3; frame <= 6; frame++) {
+                p.recordDelta(POSITION, new IntDelta(1));
+                recorder.advanceFrame();
+            }
+        }
+
+        try (ReplayCursor cursor = ReplayCursor.fromFile(file, registry)) {
+            List<ReplayUpdate> updates = new ArrayList<>();
+            cursor.addListener(updates::add);
+
+            for (int frame = 0; frame <= 5; frame++) {
+                cursor.seek(frame);
+            }
+            assertEquals(List.of(3L), updates.stream()
+                .filter(update -> update.getRemoved().contains(qId))
+                .map(ReplayUpdate::getToFrame)
+                .toList());
+
+            updates.clear();
+            cursor.seek(2);
+            assertTrue(updates.stream().anyMatch(update -> update.getEntity(qId) != null));
+
+            updates.clear();
+            cursor.seek(4);
+            assertTrue(updates.stream().anyMatch(update -> update.getRemoved().contains(qId)));
+        }
+    }
+
+    @Test
     void backwardSeekOverCoarseCloseWindowRestoresState() throws IOException {
         File file = tmp.resolve("rt-coarse-close.reel").toFile();
         TrackRegistry registry = TestFixtures.registry();

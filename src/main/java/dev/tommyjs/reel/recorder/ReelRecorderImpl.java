@@ -267,17 +267,35 @@ final class ReelRecorderImpl implements ReelRecorder {
         }
 
         private void emitClose() {
+            TrackState<?, ?> eventTrack = null;
+            boolean stateClosed = false;
             for (TrackState<?, ?> ts : tracks.values()) {
-                if (ts.initialized) {
-                    emitTrackClose(ts);
+                if (!ts.initialized) {
+                    continue;
                 }
+                if (ts.kind == TrackKind.EVENT) {
+                    if (eventTrack == null) {
+                        eventTrack = ts;
+                    }
+                } else {
+                    emitTrackClose(ts);
+                    stateClosed = true;
+                }
+            }
+
+            if (!stateClosed && eventTrack != null) {
+                emitEventTrackClose(eventTrack);
+            }
+        }
+
+        private void emitEventTrackClose(TrackState<?, ?> state) {
+            for (int layer = 0; layer < layerStrategy.depth(); layer++) {
+                long window = (currentFrame / strides[layer]) * strides[layer];
+                writer.writeClose(entityId, entityTypeId, state.trackTypeId, layer, window, allocator.buffer(0));
             }
         }
 
         private <S, D> void emitTrackClose(TrackState<S, D> state) {
-            if (state.kind == TrackKind.EVENT) {
-                return;
-            }
             for (int layer = 0; layer < layerStrategy.depth(); layer++) {
                 S base = state.layers[layer].base;
                 if (base == null) {
