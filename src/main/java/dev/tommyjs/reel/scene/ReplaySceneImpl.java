@@ -35,15 +35,15 @@ public final class ReplaySceneImpl implements ReplayScene, Closeable {
 
     public ReplaySceneImpl(@NotNull File file, @NotNull TrackRegistry tracks, @NotNull List<SceneHandler> handlers) {
         this(ReplayCursor.builder().setTrackRegistry(tracks).setReader(r -> r.setFile(file)).build(),
-            tracks, handlers);
+            tracks, handlers, true);
     }
 
-    ReplaySceneImpl(ReplayCursor cursor, TrackRegistry tracks, List<SceneHandler> handlers) {
+    ReplaySceneImpl(ReplayCursor cursor, TrackRegistry tracks, List<SceneHandler> handlers, boolean seekToStart) {
         this.cursor = cursor;
         this.tracks = tracks;
         this.handlers = order(handlers);
         this.cursor.addListener(this::onUpdate);
-        if (cursor.totalFrames() > 0) {
+        if (seekToStart && cursor.totalFrames() > 0) {
             seek(0);
         }
     }
