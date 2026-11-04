@@ -17,6 +17,7 @@ public final class ReplaySceneBuilder {
     private Consumer<ReplayCursorBuilder> cursorConfig;
     private ReplayCursor cursor;
     private final List<SceneHandler> handlers = new ArrayList<>();
+    private boolean seekToStart = true;
 
     ReplaySceneBuilder() {
     }
@@ -51,6 +52,11 @@ public final class ReplaySceneBuilder {
         return this;
     }
 
+    public @NotNull ReplaySceneBuilder setSeekToStart(boolean seekToStart) {
+        this.seekToStart = seekToStart;
+        return this;
+    }
+
     public @NotNull ReplaySceneImpl build() {
         if (trackRegistry == null) {
             throw new IllegalStateException("track registry must be provided");
@@ -71,7 +77,7 @@ public final class ReplaySceneBuilder {
             cursor = cursorBuilder.build();
         }
 
-        return new ReplaySceneImpl(cursor, trackRegistry, handlers);
+        return new ReplaySceneImpl(cursor, trackRegistry, handlers, seekToStart);
     }
 
 }
