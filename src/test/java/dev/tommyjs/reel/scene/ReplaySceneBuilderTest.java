@@ -52,7 +52,7 @@ class ReplaySceneBuilderTest {
         ReplayScene.builder().setTrackRegistry(registry).setReader(r -> r.setFile(file)).addHandler(recording(transitions)).build();
 
         assertEquals(1, transitions.size());
-        assertEquals(0L, transitions.getFirst().to());
+        assertEquals(0L, transitions.get(0).to());
     }
 
     @Test
@@ -70,7 +70,7 @@ class ReplaySceneBuilderTest {
         scene.seek(2);
 
         assertEquals(1, transitions.size());
-        assertEquals(2L, transitions.getFirst().to());
+        assertEquals(2L, transitions.get(0).to());
     }
 
     private static SceneHandler recording(List<SceneTransition> transitions) {
